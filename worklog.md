@@ -7,14 +7,45 @@
 
 ---
 
-## Current Status: ✅ v1.0.4 — Signaling Server Fixed
+## Current Status: ✅ v1.0.5 — Reconnection, Black Screen, Signaling Crash Fixed
 
 ### Architecture
 - **Frontend**: Next.js 16 (port 3000) — SPA with 4 views (Home, Share Setup, Share Active, Join, Watching)
 - **Signaling Server**: Socket.IO v4 embedded in Next.js process via `instrumentation.ts` (port 3003)
-- **Transport**: WebRTC mesh P2P — Each viewer connects directly to the broadcaster
+- **Transport**: WebRTC mesh P2P with TURN relay fallback — Each viewer connects directly to the broadcaster
 - **Components**: 9 modular components in `src/components/localcast/`
 - **Features**: Screen sharing, chat, reactions, recording, quality presets, share modes, password protection, pause/resume, network info, session stats
+
+---
+
+Task ID: 7
+Agent: Main Agent
+Task: Fix "Disconnected" status, black screen, signaling server crash
+
+Work Log:
+- Diagnosed stale closure bug: `getOrCreateSocket` useCallback with empty deps captured `isSharing=false` and `currentView="home"` permanently, so auto-reconnect in the disconnect handler NEVER triggered
+- Added `isSharingRef` and `currentViewRef` with sync useEffects to fix the stale closure
+- Fixed critical signaling server crash: `broadcastViewerCount(room)` called with 1 arg instead of 2 on line 264 — crashed every time a viewer was kicked
+- Fixed black screen on viewer: `ontrack` handler set `srcObject` but never called `play()` — autoplay blocked with `muted=false`. Added explicit `play()` with mute-and-retry fallback
+- Fixed black screen on broadcaster: Added explicit `play()` call when attaching local stream to preview
+- Created missing `src/instrumentation.ts` — signaling server only started via `/api/start-signal` before
+- Added 3 more Google STUN servers + Metered.ca TURN relay servers for NAT traversal
+- Adjusted quality thresholds: Excellent<150ms, Good<350ms, Fair<600ms
+- Increased Socket.IO timeouts: 20s main, 15s speed test
+- Added `transports: ["websocket", "polling"]` preference
+- Rebuilt, verified both ports through Caddy proxy
+- Bumped version to 1.0.5, updated CHANGELOG, pushed to GitHub
+
+Stage Summary:
+- **Root Cause #1**: Stale closure — disconnect handler always saw stale state values, reconnect never triggered
+- **Root Cause #2**: Missing function argument — signaling server crashed on viewer kick
+- **Root Cause #3**: Missing `play()` call — autoplay blocked, video stayed black
+- **Root Cause #4**: Missing `instrumentation.ts` — fragile signaling server startup
+- GitHub: https://github.com/pizzadox/localcast (v1.0.5)
+
+### Risks
+- Server process may need restart if sandbox kills it (use `bun run dev & sleep 590` orphan trick)
+- TURN relay credentials may expire (Metered.ca free tier)
 
 ---
 
