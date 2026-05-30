@@ -3,12 +3,11 @@
 // ─── ChatPanel ────────────────────────────────────────────────────────────
 // Slide-in chat panel for host/viewer messaging during active sessions.
 
-import { useEffect, useRef } from "react";
-import { motion } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { X, Send, MonitorUp, Eye } from "lucide-react";
+import { X, Send, MonitorUp, MessageCircle } from "lucide-react";
 
 import type { ChatMessage } from "./types";
 import { formatElapsed } from "./types";
@@ -31,6 +30,7 @@ export function ChatPanel({
   onClose,
 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [showTyping, setShowTyping] = useState(false);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -38,6 +38,15 @@ export function ChatPanel({
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages.length]);
+
+  // Simulate typing indicator when someone is typing (hide after send)
+  useEffect(() => {
+    if (input.length > 0 && input.length < 20) {
+      setShowTyping(true);
+    } else {
+      setShowTyping(false);
+    }
+  }, [input]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -63,13 +72,13 @@ export function ChatPanel({
         animate={{ x: 0 }}
         exit={{ x: "100%" }}
         transition={{ type: "spring", damping: 30, stiffness: 300 }}
-        className="fixed right-0 top-14 bottom-0 z-50 flex w-full max-w-sm flex-col border-l bg-background shadow-xl"
+        className="fixed right-0 top-14 bottom-0 z-50 flex w-full max-w-sm flex-col border-l bg-background/95 backdrop-blur-xl shadow-2xl shadow-black/10 dark:bg-background/95"
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b px-4 py-3">
-          <div className="flex items-center gap-2">
-            <div className="flex size-7 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400">
-              <MonitorUp className="size-4" />
+        <div className="flex items-center justify-between border-b bg-muted/20 px-4 py-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex size-8 items-center justify-center rounded-xl gradient-emerald shadow-sm shadow-emerald-500/20">
+              <MonitorUp className="size-4 text-white" />
             </div>
             <div>
               <h3 className="text-sm font-semibold">Session Chat</h3>
@@ -81,7 +90,7 @@ export function ChatPanel({
           <Button
             variant="ghost"
             size="icon"
-            className="size-8"
+            className="size-8 hover:bg-muted transition-colors"
             onClick={onClose}
           >
             <X className="size-4" />
@@ -91,50 +100,50 @@ export function ChatPanel({
         {/* Messages */}
         <div
           ref={scrollRef}
-          className="flex-1 overflow-y-auto px-4 py-3"
+          className="flex-1 overflow-y-auto px-4 py-3 custom-scrollbar"
         >
           {messages.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
-              <div className="flex size-12 items-center justify-center rounded-full bg-muted">
-                <MonitorUp className="size-5 text-muted-foreground" />
+            <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+              <div className="flex size-14 items-center justify-center rounded-2xl bg-muted/50">
+                <MessageCircle className="size-6 text-muted-foreground/40" />
               </div>
-              <p className="text-sm text-muted-foreground">No messages yet</p>
-              <p className="text-xs text-muted-foreground/60">
-                Say hello to start the conversation
-              </p>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground/70">No messages yet</p>
+                <p className="mt-0.5 text-xs text-muted-foreground/40">
+                  Say hello to start the conversation
+                </p>
+              </div>
             </div>
           ) : (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3">
               {messages.map((msg, idx) => {
                 const isOwn = (isHost && msg.senderType === "host") || (!isHost && msg.senderId === "self");
                 return (
                   <motion.div
                     key={msg.id || `${msg.senderId}-${msg.timestamp}-${idx}`}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.2 }}
+                    initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ duration: 0.25, ease: "easeOut" }}
                     className={`flex flex-col ${isOwn ? "items-end" : "items-start"}`}
                   >
                     {/* Show sender name only if different from previous */}
                     {(idx === 0 || messages[idx - 1]?.senderId !== msg.senderId) && (
-                      <div className={`flex items-center gap-1 mb-0.5 ${isOwn ? "flex-row-reverse" : ""}`}>
-                        <span className={`text-[11px] font-medium ${
-                          msg.senderType === "host"
-                            ? "text-emerald-600 dark:text-emerald-400"
-                            : "text-teal-600 dark:text-teal-400"
-                        }`}>
-                          {msg.senderType === "host" ? "📹 Host" : msg.senderName}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground/50">
+                      <div className={`flex items-center gap-1.5 mb-1 ${isOwn ? "flex-row-reverse" : ""}`}>
+                        {msg.senderType === "host" ? (
+                          <span className="badge-gradient-host">Host</span>
+                        ) : (
+                          <span className="badge-gradient-viewer">{msg.senderName}</span>
+                        )}
+                        <span className="text-[10px] text-muted-foreground/40">
                           {formatElapsed(Date.now() - msg.timestamp)} ago
                         </span>
                       </div>
                     )}
                     <div
-                      className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${
+                      className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
                         isOwn
-                          ? "rounded-br-md bg-emerald-600 text-white dark:bg-emerald-700"
-                          : "rounded-bl-md bg-muted"
+                          ? "msg-bubble-own rounded-br-sm"
+                          : "msg-bubble-other rounded-bl-sm"
                       }`}
                     >
                       {msg.message}
@@ -142,32 +151,57 @@ export function ChatPanel({
                   </motion.div>
                 );
               })}
+
+              {/* Typing indicator */}
+              <AnimatePresence>
+                {showTyping && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 4 }}
+                    transition={{ duration: 0.2 }}
+                    className={`flex items-center gap-2 ${isHost ? "justify-start" : "justify-end"}`}
+                  >
+                    <div className="msg-bubble-other rounded-2xl rounded-bl-sm px-3 py-2">
+                      <div className="typing-indicator text-muted-foreground">
+                        <span />
+                        <span />
+                        <span />
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           )}
         </div>
 
         {/* Input */}
-        <div className="border-t p-3">
+        <div className="border-t bg-muted/10 p-3">
           <div className="flex items-center gap-2">
-            <Input
-              value={input}
-              onChange={(e) => onInputChange(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Type a message..."
-              className="flex-1"
-              maxLength={500}
-              autoFocus
-            />
-            <Button
-              size="icon"
-              onClick={onSend}
-              disabled={!input.trim()}
-              className="size-9 shrink-0 bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700"
-            >
-              <Send className="size-4" />
-            </Button>
+            <div className="relative flex-1">
+              <Input
+                value={input}
+                onChange={(e) => onInputChange(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Type a message..."
+                className="glass-input flex-1 pr-10 rounded-xl h-10"
+                maxLength={500}
+                autoFocus
+              />
+            </div>
+            <motion.div whileTap={{ scale: 0.92 }}>
+              <Button
+                size="icon"
+                onClick={onSend}
+                disabled={!input.trim()}
+                className="size-10 shrink-0 rounded-xl bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700 shadow-md shadow-emerald-500/20 transition-all disabled:opacity-40 disabled:shadow-none"
+              >
+                <Send className="size-4" />
+              </Button>
+            </motion.div>
           </div>
-          <p className="mt-1.5 text-center text-[10px] text-muted-foreground/40">
+          <p className="mt-2 text-center text-[10px] text-muted-foreground/30">
             Press Enter to send · Messages are local only
           </p>
         </div>

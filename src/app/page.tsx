@@ -28,6 +28,9 @@ import {
   Timer,
   HelpCircle,
   MessageSquare,
+  Volume2,
+  VolumeX,
+  User,
 } from "lucide-react";
 
 import type { View } from "@/components/localcast/types";
@@ -138,6 +141,21 @@ export default function Home() {
     unreadCount,
     // Reactions
     recentReactions,
+    // Recording
+    isRecording,
+    recordingDuration,
+    startRecording,
+    stopRecording,
+    // Display Name
+    displayName,
+    setDisplayName,
+    // Sound
+    soundEnabled,
+    setSoundEnabled,
+    // Connection Log
+    connectionLog,
+    // Auto Quality
+    isAutoQualityActive,
     // Refs
     videoRef,
     previewVideoRef,
@@ -180,6 +198,20 @@ export default function Home() {
           </button>
 
           <div className="flex items-center gap-3">
+            {/* Name Editor (during active sessions) */}
+            {isSession && (
+              <div className="flex items-center gap-1.5 rounded-lg border bg-muted/30 px-2 py-1">
+                <User className="size-3 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value.slice(0, 20))}
+                  className="w-20 bg-transparent text-xs font-medium outline-none placeholder:text-muted-foreground/50"
+                  placeholder="Your name"
+                  aria-label="Display name"
+                />
+              </div>
+            )}
             {currentView !== "home" && currentView !== "join" && (
               <StatusDot status={connectionStatus} />
             )}
@@ -224,6 +256,22 @@ export default function Home() {
                 )}
               </Button>
             )}
+            {/* Sound Toggle Button */}
+            {isSession && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className={`size-8 ${!soundEnabled ? "text-muted-foreground" : ""}`}
+                onClick={() => setSoundEnabled(!soundEnabled)}
+                title={soundEnabled ? "Mute sounds" : "Enable sounds"}
+              >
+                {soundEnabled ? (
+                  <Volume2 className="size-4" />
+                ) : (
+                  <VolumeX className="size-4" />
+                )}
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"
@@ -241,9 +289,10 @@ export default function Home() {
 
       {/* ─── Main Content ───────────────────────────────────────────────── */}
       <main className="flex-1 flex items-center justify-center">
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="wait" initial={false}>
           {currentView === "home" && (
             <HomeView
+              key="home"
               onNavigate={(view: View) => {
                 setError(null);
                 setCurrentView(view);
@@ -254,6 +303,7 @@ export default function Home() {
 
           {currentView === "share" && !isSharing && (
             <ShareSetupView
+              key="share-setup"
               onStartSharing={startSharing}
               requireApproval={requireApproval}
               onToggleApproval={setRequireApproval}
@@ -269,6 +319,7 @@ export default function Home() {
 
           {currentView === "share" && isSharing && (
             <ShareActiveView
+              key="share-active"
               roomId={roomId}
               viewers={viewers}
               requireApproval={requireApproval}
@@ -279,6 +330,8 @@ export default function Home() {
               streamResolution={streamResolution}
               currentBitrate={currentBitrate}
               elapsedTime={elapsedTime}
+              connectionLog={connectionLog}
+              isAutoQualityActive={isAutoQualityActive}
               onCopyRoomCode={copyRoomCode}
               onShowQrDialog={() => setShowQrDialog(true)}
               onApproveViewer={approveViewer}
@@ -290,6 +343,7 @@ export default function Home() {
 
           {currentView === "join" && (
             <JoinView
+              key="join"
               viewerInput={viewerInput}
               onViewerInputChange={(v) => {
                 setViewerInput(v);
@@ -309,6 +363,7 @@ export default function Home() {
 
           {currentView === "watching" && (
             <WatchView
+              key="watching"
               videoRef={videoRef}
               containerRef={containerRef}
               roomId={roomId}
@@ -320,6 +375,10 @@ export default function Home() {
               waitingApproval={waitingApproval}
               error={error}
               latency={latency}
+              isRecording={isRecording}
+              recordingDuration={recordingDuration}
+              onStartRecording={startRecording}
+              onStopRecording={stopRecording}
               onToggleMute={() => {
                 if (videoRef.current) {
                   videoRef.current.muted = !isMuted;

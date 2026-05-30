@@ -22,12 +22,12 @@ import {
   Users,
   Wifi,
   Zap,
-  Globe,
   QrCode,
   ArrowRight,
   Sparkles,
   Lock,
   Clock,
+  Globe,
 } from "lucide-react";
 
 import { pageVariants, staggerContainer, fadeInUp } from "./types";
@@ -54,7 +54,7 @@ const steps = [
     icon: Eye,
     title: "Watch in Real-Time",
     description: "Viewers join instantly — no installs, no sign-ups, no cloud.",
-    color: "bg-violet-100 text-violet-600 dark:bg-violet-950/80 dark:text-violet-400",
+    color: "bg-emerald-100 text-emerald-600 dark:bg-emerald-950/80 dark:text-emerald-400",
   },
 ];
 
@@ -66,6 +66,16 @@ const features = [
   { icon: Lock, label: "Privacy First", desc: "No cloud storage at all" },
   { icon: Clock, label: "Instant Setup", desc: "Works in your browser" },
 ];
+
+// Generate deterministic particle positions
+const particles = Array.from({ length: 18 }, (_, i) => ({
+  id: i,
+  left: `${(i * 5.8 + 2) % 95}%`,
+  top: `${(i * 7.3 + 5) % 90}%`,
+  size: 3 + (i % 4),
+  delay: -(i * 0.8),
+  duration: 6 + (i % 5) * 2,
+}));
 
 export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
   return (
@@ -79,7 +89,27 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
       className="w-full max-w-5xl px-4 py-6 sm:py-10"
     >
       {/* ── Hero Section ──────────────────────────────────────────────────── */}
-      <div className="hero-bg dark:hero-bg-dark relative mb-12 overflow-hidden rounded-3xl border bg-gradient-to-br from-emerald-50/50 via-transparent to-teal-50/30 dark:from-emerald-950/20 dark:via-transparent dark:to-teal-950/10 sm:rounded-[2rem] px-6 py-12 text-center sm:py-16">
+      <div className="gradient-shift relative mb-12 overflow-hidden rounded-3xl sm:rounded-[2rem]">
+        {/* Gradient overlay */}
+        <div className="absolute inset-0 hero-bg dark:hero-bg-dark" />
+
+        {/* Floating particles */}
+        {particles.map((p) => (
+          <div
+            key={p.id}
+            className="particle-dot"
+            style={{
+              left: p.left,
+              top: p.top,
+              width: p.size,
+              height: p.size,
+              animationDelay: `${p.delay}s`,
+              animationDuration: `${p.duration}s`,
+            }}
+          />
+        ))}
+
+        {/* Dot grid pattern */}
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.04] dark:opacity-[0.02]"
           style={{
@@ -88,40 +118,61 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
             backgroundSize: "28px 28px",
           }}
         />
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
-          className="relative"
-        >
-          <div className="mx-auto mb-6 flex size-20 items-center justify-center rounded-3xl gradient-emerald shadow-xl shadow-emerald-500/30 sm:size-24">
-            <Monitor className="size-10 text-white sm:size-12" />
-          </div>
-          <motion.h1
-            initial={{ opacity: 0, y: 12 }}
+
+        {/* Inner border glow */}
+        <div className="absolute inset-0 rounded-3xl sm:rounded-[2rem] border border-white/20 dark:border-white/5 pointer-events-none" />
+
+        <div className="relative px-6 py-12 text-center sm:py-16 sm:px-12">
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1, duration: 0.5 }}
-            className="text-4xl font-black tracking-tight sm:text-6xl"
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            className="relative"
           >
-            <span className="text-gradient">LocalCast</span>
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2, duration: 0.4 }}
-            className="mt-3 max-w-lg mx-auto text-lg text-muted-foreground"
-          >
-            Share your screen instantly over your local network.
-          </motion.p>
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3, duration: 0.4 }}
-            className="mt-1 text-sm text-muted-foreground/70"
-          >
-            No sign-up, no cloud, no delay. Just a room code away.
-          </motion.p>
-        </motion.div>
+            {/* Logo with float animation */}
+            <div className="mx-auto mb-6 flex size-20 items-center justify-center rounded-3xl gradient-emerald shadow-xl shadow-emerald-500/30 sm:size-24 float-animation">
+              <Monitor className="size-10 text-white sm:size-12" />
+            </div>
+
+            <motion.h1
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1, duration: 0.5 }}
+              className="text-4xl font-black tracking-tight sm:text-6xl"
+            >
+              <span className="text-gradient">LocalCast</span>
+            </motion.h1>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.2, duration: 0.4 }}
+              className="mt-3 max-w-lg mx-auto text-lg text-muted-foreground"
+            >
+              Share your screen instantly over your local network.
+            </motion.p>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3, duration: 0.4 }}
+              className="mt-1 text-sm text-muted-foreground/70"
+            >
+              No sign-up, no cloud, no delay. Just a room code away.
+            </motion.p>
+
+            {/* "Made for local networks" badge */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.5, duration: 0.4 }}
+              className="mt-6 inline-flex items-center gap-1.5 rounded-full border border-emerald-200/60 bg-emerald-50/80 px-3 py-1 dark:border-emerald-800/40 dark:bg-emerald-950/40"
+            >
+              <Globe className="size-3 text-emerald-600 dark:text-emerald-400" />
+              <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                Made for local networks
+              </span>
+            </motion.div>
+          </motion.div>
+        </div>
       </div>
 
       {/* ── How It Works ──────────────────────────────────────────────── */}
@@ -142,13 +193,13 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 + i * 0.1, duration: 0.4 }}
-              className="group relative flex flex-col items-center gap-3 rounded-2xl border bg-card p-5 transition-all duration-300 hover:shadow-lg hover:border-emerald-200 dark:hover:border-emerald-800"
+              className="group relative flex flex-col items-center gap-3 rounded-2xl border bg-card p-5 transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/5 hover:border-emerald-300 dark:hover:border-emerald-700 hover-glow-emerald"
             >
               {/* Step number */}
               <div className="absolute -top-3 -left-3 flex size-6 items-center justify-center rounded-full bg-emerald-600 text-[11px] font-bold text-white shadow-md shadow-emerald-500/30">
                 {i + 1}
               </div>
-              <div className={`flex size-12 items-center justify-center rounded-2xl ${step.color} shadow-sm transition-transform duration-300 group-hover:scale-110`}>
+              <div className={`flex size-12 items-center justify-center rounded-2xl ${step.color} shadow-sm transition-all duration-300 group-hover:scale-110 group-hover:shadow-md`}>
                 <step.icon className="size-6" />
               </div>
               <h3 className="text-sm font-bold">{step.title}</h3>
@@ -169,9 +220,9 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
       >
         {/* Share Screen Card */}
         <motion.div variants={fadeInUp}>
-          <Card className="group relative overflow-hidden cursor-pointer border-2 transition-all duration-300 hover:border-emerald-500/50 hover:shadow-2xl hover:shadow-emerald-500/15 hover:scale-[1.02] dark:hover:border-emerald-400/30 dark:hover:shadow-emerald-400/5">
+          <Card className="glass-card group relative overflow-hidden cursor-pointer border-2 hover:scale-[1.02]">
             {/* Top accent gradient */}
-            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500" />
+            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500 opacity-80 transition-opacity group-hover:opacity-100" />
             <CardHeader className="pt-6">
               <div className="mb-3 flex size-14 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600 transition-all duration-300 group-hover:bg-emerald-200 group-hover:shadow-lg group-hover:shadow-emerald-500/20 dark:bg-emerald-950 dark:text-emerald-400 dark:group-hover:bg-emerald-900">
                 <MonitorUp className="size-7" />
@@ -189,7 +240,7 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
                   onClearError();
                   onNavigate("share");
                 }}
-                className="relative w-full overflow-hidden bg-emerald-600 text-white shadow-md shadow-emerald-500/25 hover:bg-emerald-700 hover:shadow-lg hover:shadow-emerald-500/30 transition-all dark:bg-emerald-600 dark:hover:bg-emerald-700"
+                className="relative w-full overflow-hidden bg-emerald-600 text-white shadow-lg shadow-emerald-500/25 hover:bg-emerald-700 hover:shadow-xl hover:shadow-emerald-500/30 transition-all dark:bg-emerald-600 dark:hover:bg-emerald-700"
                 size="lg"
               >
                 <span className="absolute inset-0 overflow-hidden rounded-md">
@@ -203,7 +254,7 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
                 </span>
                 <MonitorPlay className="relative size-4" />
                 <span className="relative">Start Sharing</span>
-                <ArrowRight className="relative ml-1 size-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <ArrowRight className="relative ml-1 size-4 opacity-0 group-hover:opacity-100 -translate-x-1 group-hover:translate-x-0 transition-all duration-200" />
               </Button>
             </CardFooter>
           </Card>
@@ -211,8 +262,8 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
 
         {/* View Screen Card */}
         <motion.div variants={fadeInUp}>
-          <Card className="group relative overflow-hidden cursor-pointer border-2 transition-all duration-300 hover:border-teal-500/50 hover:shadow-2xl hover:shadow-teal-500/15 hover:scale-[1.02] dark:hover:border-teal-400/30 dark:hover:shadow-teal-400/5">
-            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-teal-500 via-cyan-400 to-teal-500" />
+          <Card className="glass-card group relative overflow-hidden cursor-pointer border-2 hover:scale-[1.02]">
+            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-teal-500 via-cyan-400 to-teal-500 opacity-80 transition-opacity group-hover:opacity-100" />
             <CardHeader className="pt-6">
               <div className="mb-3 flex size-14 items-center justify-center rounded-2xl bg-teal-100 text-teal-600 transition-all duration-300 group-hover:bg-teal-200 group-hover:shadow-lg group-hover:shadow-teal-500/20 dark:bg-teal-950 dark:text-teal-400 dark:group-hover:bg-teal-900">
                 <Eye className="size-7" />
@@ -230,7 +281,7 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
                   onClearError();
                   onNavigate("join");
                 }}
-                className="relative w-full overflow-hidden bg-teal-600 text-white shadow-md shadow-teal-500/25 hover:bg-teal-700 hover:shadow-lg hover:shadow-teal-500/30 transition-all dark:bg-teal-600 dark:hover:bg-teal-700"
+                className="relative w-full overflow-hidden bg-teal-600 text-white shadow-lg shadow-teal-500/25 hover:bg-teal-700 hover:shadow-xl hover:shadow-teal-500/30 transition-all dark:bg-teal-600 dark:hover:bg-teal-700"
                 size="lg"
               >
                 <span className="absolute inset-0 overflow-hidden rounded-md">
@@ -244,7 +295,7 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
                 </span>
                 <Monitor className="relative size-4" />
                 <span className="relative">Join a Room</span>
-                <ArrowRight className="relative ml-1 size-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <ArrowRight className="relative ml-1 size-4 opacity-0 group-hover:opacity-100 -translate-x-1 group-hover:translate-x-0 transition-all duration-200" />
               </Button>
             </CardFooter>
           </Card>
@@ -267,9 +318,9 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.6 + i * 0.05, duration: 0.3 }}
-              className="flex items-start gap-2.5 rounded-xl border bg-muted/20 p-3.5 transition-colors hover:bg-muted/40"
+              className="group flex items-start gap-2.5 rounded-xl border bg-muted/20 p-3.5 transition-all duration-200 hover:bg-muted/40 hover:shadow-sm hover:border-emerald-200/50 dark:hover:border-emerald-800/30"
             >
-              <feat.icon className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <feat.icon className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400 transition-transform duration-200 group-hover:scale-110" />
               <div>
                 <p className="text-xs font-semibold">{feat.label}</p>
                 <p className="text-[11px] leading-tight text-muted-foreground/60">{feat.desc}</p>

@@ -1,48 +1,64 @@
 "use client";
 
 // ─── useLocalCast ─────────────────────────────────────────────────────────
-// Custom hook encapsulating all LocalCast state management, WebRTC, and
-// Socket.IO logic. Returns everything the UI layer needs.
+// Core custom hook encapsulating ALL LocalCast state management, WebRTC
+// peer connections, Socket.IO signaling, stats monitoring, chat, reactions,
+// and cleanup logic.  Returns everything the UI layer (page.tsx) needs.
 
 import {
   useState,
   useRef,
   useEffect,
   useCallback,
+  type RefObject,
 } from "react";
 import { io, Socket } from "socket.io-client";
 import { toast } from "sonner";
 
-import type { View, ViewerInfo, ChatMessage, Reaction, QualityPreset } from "./types";
-import { ICE_CONFIG, parseDeviceInfo, QUALITY_PRESETS, generateId } from "./types";
+import type {
+  View,
+  ConnectionStatus,
+  ConnectionQuality,
+  Viewer,
+  ChatMessage,
+  Reaction,
+  QualityPreset,
+  ConnectionLogEntry,
+} from "./types";
+import {
+  ICE_CONFIG,
+  QUALITY_PRESETS,
+  parseDeviceInfo,
+  generateId,
+  playNotificationSound,
+} from "./types";
 
 // ─── Hook Return Type ────────────────────────────────────────────────────
 
 export interface UseLocalCastReturn {
-  // View state
+  // View
   currentView: View;
   setCurrentView: (v: View) => void;
 
-  // Broadcaster state
+  // Broadcaster
   roomId: string;
   isSharing: boolean;
   requireApproval: boolean;
   setRequireApproval: (v: boolean) => void;
-  hostId: string;
   qualityPreset: QualityPreset;
   setQualityPreset: (v: QualityPreset) => void;
 
-  // Viewer state
+  // Viewer
   viewerInput: string;
   setViewerInput: (v: string) => void;
   isMuted: boolean;
   setIsMuted: (v: boolean) => void;
   isFullscreen: boolean;
-  connectionQuality: "good" | "fair" | "poor";
+  connectionQuality: ConnectionQuality;
 
-  // Shared state
-  connectionStatus: "disconnected" | "connecting" | "connected";
-  viewers: ViewerInfo[];
+  // Shared
+  connectionStatus: ConnectionStatus;
+  viewers: Viewer[];
   error: string | null;
   setError: (e: string | null) => void;
   showQrDialog: boolean;
@@ -52,16 +68,16 @@ export interface UseLocalCastReturn {
   showChatPanel: boolean;
   setShowChatPanel: (v: boolean) => void;
   copied: boolean;
-  elapsedDisplay: string;
   elapsedTime: number;
   waitingApproval: boolean;
   setWaitingApproval: (v: boolean) => void;
   pipSupported: boolean;
   activePeerCount: number;
   estimatedDataTransferred: number;
-  qrUrl: string;
   streamResolution: string;
   latency: number;
+  currentBitrate: number;
+  qrUrl: string;
 
   // Chat
   chatMessages: ChatMessage[];
@@ -73,13 +89,30 @@ export interface UseLocalCastReturn {
   // Reactions
   recentReactions: Reaction[];
 
-  // Live stats
-  currentBitrate: number;
+  // Recording
+  isRecording: boolean;
+  recordingDuration: number;
+  startRecording: () => void;
+  stopRecording: () => void;
+
+  // Display Name
+  displayName: string;
+  setDisplayName: (name: string) => void;
+
+  // Sound
+  soundEnabled: boolean;
+  setSoundEnabled: (v: boolean) => void;
+
+  // Connection Log
+  connectionLog: ConnectionLogEntry[];
+
+  // Auto Quality
+  isAutoQualityActive: boolean;
 
   // Refs
-  videoRef: React.RefObject<HTMLVideoElement | null>;
-  previewVideoRef: React.RefObject<HTMLVideoElement | null>;
-  containerRef: React.RefObject<HTMLDivElement | null>;
+  videoRef: RefObject<HTMLVideoElement | null>;
+  previewVideoRef: RefObject<HTMLVideoElement | null>;
+  containerRef: RefObject<HTMLDivElement | null>;
 
   // Actions
   startSharing: () => Promise<void>;
@@ -87,7 +120,7 @@ export interface UseLocalCastReturn {
   approveViewer: (viewerId: string) => void;
   denyViewer: (viewerId: string) => void;
   disconnectViewer: (viewerId: string) => void;
-  joinRoom: () => void;
+  joinRoom: (roomId?: string) => void;
   leaveRoom: () => void;
   toggleFullscreen: () => void;
   togglePiP: () => Promise<void>;
@@ -99,105 +132,268 @@ export interface UseLocalCastReturn {
 // ─── Hook ─────────────────────────────────────────────────────────────────
 
 export function useLocalCast(): UseLocalCastReturn {
-  // ── View State ──
+  // ═══════════════════════════════════════════════════════════════════════
+  // STATE
+  // ═══════════════════════════════════════════════════════════════════════
+
+  // ── View ──
   const [currentView, setCurrentView] = useState<View>("home");
 
-  // ── Broadcaster State ──
-  const [roomId, setRoomId] = useState<string>("");
+  // ── Broadcaster ──
+  const [roomId, setRoomId] = useState("");
   const [isSharing, setIsSharing] = useState(false);
   const [requireApproval, setRequireApproval] = useState(false);
-  const [hostId, setHostId] = useState<string>("");
   const [qualityPreset, setQualityPreset] = useState<QualityPreset>("medium");
 
-  // ── Viewer State ──
+  // ── Viewer ──
   const [viewerInput, setViewerInput] = useState("");
   const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [connectionQuality, setConnectionQuality] = useState<"good" | "fair" | "poor">("good");
+  const [connectionQuality, setConnectionQuality] =
+    useState<ConnectionQuality>("good");
   const [latency, setLatency] = useState(0);
 
-  // ── Shared State ──
-  const [connectionStatus, setConnectionStatus] = useState<
-    "disconnected" | "connecting" | "connected"
-  >("disconnected");
-  const [viewers, setViewers] = useState<ViewerInfo[]>([]);
+  // ── Shared ──
+  const [connectionStatus, setConnectionStatus] =
+    useState<ConnectionStatus>("disconnected");
+  const [viewers, setViewers] = useState<Viewer[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showQrDialog, setShowQrDialog] = useState(false);
+  const [showShortcutsDialog, setShowShortcutsDialog] = useState(false);
+  const [showChatPanel, setShowChatPanel] = useState(false);
   const [copied, setCopied] = useState(false);
   const [waitingApproval, setWaitingApproval] = useState(false);
 
-  // ── Chat State ──
+  // ── Session Timer ──
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const shareStartRef = useRef<number>(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── Connection Stats ──
+  const [streamResolution, setStreamResolution] = useState("---");
+  const [currentBitrate, setCurrentBitrate] = useState(0);
+  const [estimatedDataTransferred, setEstimatedDataTransferred] =
+    useState(0);
+
+  // ── Chat ──
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
-  const [showChatPanel, setShowChatPanel] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // ── Reactions State ──
+  // ── Reactions ──
   const [recentReactions, setRecentReactions] = useState<Reaction[]>([]);
 
-  // ── Feature: Session Timer State ──
-  const [elapsedTime, setElapsedTime] = useState<number>(0);
-  const shareStartRef = useRef<Date | null>(null);
-  const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // ── Recording ──
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordingChunksRef = useRef<Blob[]>([]);
+  const recordingStartRef = useRef<number>(0);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // ── Feature: Connection Stats State ──
-  const [streamResolution, setStreamResolution] = useState<string>("—");
-  const [currentBitrate, setCurrentBitrate] = useState(0);
+  // ── Display Name ──
+  const [displayName, setDisplayNameState] = useState(() => {
+    if (typeof window === "undefined") return "";
+    const saved = localStorage.getItem("localcast-display-name");
+    if (saved) return saved;
+    return parseDeviceInfo(navigator.userAgent).deviceName;
+  });
+  const setDisplayName = useCallback((name: string) => {
+    setDisplayNameState(name);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("localcast-display-name", name);
+    }
+  }, []);
 
-  // ── Feature: Keyboard Shortcuts Dialog ──
-  const [showShortcutsDialog, setShowShortcutsDialog] = useState(false);
+  // ── Sound ──
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    if (typeof window === "undefined") return true;
+    const saved = localStorage.getItem("localcast-sound-enabled");
+    return saved !== "false";
+  });
 
-  // ── Refs ──
+  // ── Connection Log ──
+  const [connectionLog, setConnectionLog] = useState<ConnectionLogEntry[]>([]);
+  const addConnectionLog = useCallback((type: ConnectionLogEntry["type"], message: string) => {
+    setConnectionLog((prev) => [
+      ...prev.slice(-49),
+      { id: generateId(), type, message, timestamp: Date.now() },
+    ]);
+  }, []);
+
+  // ── Auto Quality ──
+  const [isAutoQualityActive, setIsAutoQualityActive] = useState(false);
+  const autoQualityTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const poorQualitySinceRef = useRef<number>(0);
+  const goodQualitySinceRef = useRef<number>(0);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // REFS
+  // ═══════════════════════════════════════════════════════════════════════
+
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const previewVideoRef = useRef<HTMLVideoElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
   const socketRef = useRef<Socket | null>(null);
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const localStreamRef = useRef<MediaStream | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const previewVideoRef = useRef<HTMLVideoElement>(null);
   const pendingCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(
-    new Map()
+    new Map(),
   );
   const viewerPeerRef = useRef<RTCPeerConnection | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const hostIdRef = useRef("");
 
-  // ── Reconnection state ──
+  // ── Reconnection ──
   const reconnectAttemptRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const intentionalDisconnectRef = useRef(false);
-  const lastPingRef = useRef<number>(0);
 
-  // ── Stats tracking refs ──
+  // ── Latency ──
+  const lastPingRef = useRef(0);
+
+  // ── Stats ──
   const statsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevBytesSentRef = useRef<Map<string, number>>(new Map());
+  const totalBytesSentRef = useRef(0);
 
-  // ── Get or create socket with auto-reconnection ──
-  const getSocket = useCallback((): Socket => {
-    if (!socketRef.current) {
-      intentionalDisconnectRef.current = false;
-      const socket = io("/?XTransformPort=3003", {
-        reconnection: false,
-        timeout: 10000,
+  // ── Recording Actions ──
+  const startRecording = useCallback(() => {
+    if (!videoRef.current?.srcObject) {
+      toast.error("No stream available to record");
+      return;
+    }
+    try {
+      const stream = videoRef.current.srcObject as MediaStream;
+      const recorder = new MediaRecorder(stream, {
+        mimeType: "video/webm;codecs=vp8,opus",
       });
+      recordingChunksRef.current = [];
 
-      socket.on("connect", () => {
-        reconnectAttemptRef.current = 0;
-        if (reconnectTimerRef.current) {
-          clearTimeout(reconnectTimerRef.current);
-          reconnectTimerRef.current = null;
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          recordingChunksRef.current.push(e.data);
         }
-      });
+      };
 
-      socket.on("disconnect", (reason) => {
-        if (
-          !intentionalDisconnectRef.current &&
-          (isSharing || currentView === "watching" || currentView === "join")
-        ) {
+      recorder.onstop = () => {
+        const blob = new Blob(recordingChunksRef.current, {
+          type: "video/webm",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        const now = new Date();
+        const dateStr = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
+        a.href = url;
+        a.download = `localcast-recording-${dateStr}.webm`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        recordingChunksRef.current = [];
+        toast.success("Recording saved!");
+      };
+
+      recorder.onerror = () => {
+        toast.error("Recording error occurred");
+        setIsRecording(false);
+        setRecordingDuration(0);
+      };
+
+      recorder.start(1000);
+      mediaRecorderRef.current = recorder;
+      recordingStartRef.current = Date.now();
+      setIsRecording(true);
+      setRecordingDuration(0);
+
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration(Date.now() - recordingStartRef.current);
+      }, 1000);
+
+      toast.info("Recording started");
+    } catch {
+      toast.error("Recording is not supported in this browser");
+    }
+  }, []);
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current = null;
+    }
+    setIsRecording(false);
+    setRecordingDuration(0);
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+  }, []);
+
+  // ── Auto Quality: adjust bitrate on all peers ──
+  const applyBitrateToAllPeers = useCallback((bitrate: number) => {
+    peersRef.current.forEach((pc) => {
+      const senders = pc.getSenders();
+      const videoSender = senders.find((s) => s.track?.kind === "video");
+      if (videoSender) {
+        try {
+          const params = videoSender.getParameters();
+          if (!params.encodings) params.encodings = [{}];
+          params.encodings[0].maxBitrate = bitrate;
+          videoSender.setParameters(params);
+        } catch {
+          // Ignore setParameters errors
+        }
+      }
+    });
+  }, []);
+
+  // ── Derived ──
+  const activePeerCount = viewers.filter((v) => v.approved).length;
+  const pipSupported =
+    typeof document !== "undefined" &&
+    !!document.pictureInPictureEnabled;
+
+  const qrUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}${window.location.pathname}?join=${roomId}`
+      : "";
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // SOCKET.IO — Get / Create
+  // ═══════════════════════════════════════════════════════════════════════
+
+  const getOrCreateSocket = useCallback((): Socket => {
+    if (socketRef.current) return socketRef.current;
+
+    intentionalDisconnectRef.current = false;
+    const socket = io("/?XTransformPort=3003", {
+      reconnection: false,
+      timeout: 10000,
+    });
+
+    // Auto-reconnect with exponential backoff
+    socket.on("connect", () => {
+      reconnectAttemptRef.current = 0;
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+    });
+
+    socket.on("disconnect", (reason) => {
+      if (!intentionalDisconnectRef.current) {
+        // Only auto-reconnect when we believe we're in an active session
+        // We check the refs to avoid stale closures
+        const sharing = isSharing;
+        const view = currentView;
+        if (sharing || view === "watching" || view === "join") {
           const attempt = reconnectAttemptRef.current;
           const delay = Math.min(1000 * Math.pow(2, attempt), 30000);
           reconnectAttemptRef.current = attempt + 1;
 
           toast.warning(
             `Connection lost. Reconnecting in ${Math.round(delay / 1000)}s...`,
-            { id: "reconnect" }
+            { id: "localcast-reconnect" },
           );
 
           reconnectTimerRef.current = setTimeout(() => {
@@ -206,40 +402,93 @@ export function useLocalCast(): UseLocalCastReturn {
             }
           }, delay);
         }
-      });
+      }
+    });
 
-      socketRef.current = socket;
-    }
-    return socketRef.current;
-  }, [isSharing, currentView]);
+    // PONG latency handler (always attached)
+    socket.on("PONG", () => {
+      if (lastPingRef.current > 0) {
+        setLatency(Date.now() - lastPingRef.current);
+        lastPingRef.current = 0;
+      }
+    });
 
-  // ── Remove all listeners from socket to prevent duplicates ──
-  const removeAllListeners = useCallback((socket: Socket) => {
-    const events = [
-      "connect", "disconnect", "connect_error",
-      "ROOM_CREATED", "VIEWER_JOINED", "WEBRTC_SIGNAL",
-      "VIEWER_DISCONNECTED", "ERROR", "ROOM_JOINED",
-      "VIEWER_APPROVED", "VIEWER_DENIED", "HOST_DISCONNECTED",
-      "ROOM_NOT_FOUND", "KICKED", "ROOM_SETTINGS_UPDATED",
-      "CHAT_MESSAGE", "REACTION", "VIEWER_COUNT_UPDATE",
-    ];
-    events.forEach((e) => socket.removeAllListeners(e));
+    socketRef.current = socket;
+    return socket;
   }, []);
 
-  // ── Cleanup resources ──
+  // ═══════════════════════════════════════════════════════════════════════
+  // SOCKET.IO — Remove All Custom Listeners
+  // ═══════════════════════════════════════════════════════════════════════
+
+  const removeAllListeners = useCallback((socket: Socket) => {
+    const events = [
+      "connect",
+      "disconnect",
+      "connect_error",
+      "ROOM_CREATED",
+      "ROOM_JOINED",
+      "ROOM_NOT_FOUND",
+      "VIEWER_JOINED",
+      "VIEWER_DISCONNECTED",
+      "VIEWER_APPROVED",
+      "VIEWER_DENIED",
+      "WEBRTC_SIGNAL",
+      "ERROR",
+      "KICKED",
+      "HOST_DISCONNECTED",
+      "SERVER_SHUTDOWN",
+      "CHAT_MESSAGE",
+      "REACTION",
+      "VIEWER_COUNT_UPDATE",
+      "ROOM_SETTINGS_UPDATED",
+    ];
+    for (const e of events) {
+      socket.removeAllListeners(e);
+    }
+  }, []);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // CLEANUP
+  // ═══════════════════════════════════════════════════════════════════════
+
   const cleanupAll = useCallback(() => {
     intentionalDisconnectRef.current = true;
 
+    // Stop recording
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current = null;
+    }
+    setIsRecording(false);
+    setRecordingDuration(0);
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+
+    // Stop auto-quality timer
+    if (autoQualityTimerRef.current) {
+      clearInterval(autoQualityTimerRef.current);
+      autoQualityTimerRef.current = null;
+    }
+    setIsAutoQualityActive(false);
+    poorQualitySinceRef.current = 0;
+    goodQualitySinceRef.current = 0;
+    toast.dismiss("localcast-reconnect");
+
+    // Clear reconnection timer
     if (reconnectTimerRef.current) {
       clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = null;
     }
     reconnectAttemptRef.current = 0;
-    toast.dismiss("reconnect");
 
+    // Close all broadcaster peers
     peersRef.current.forEach((pc) => pc.close());
     peersRef.current.clear();
 
+    // Close viewer peer
     if (viewerPeerRef.current) {
       viewerPeerRef.current.close();
       viewerPeerRef.current = null;
@@ -247,31 +496,37 @@ export function useLocalCast(): UseLocalCastReturn {
 
     pendingCandidatesRef.current.clear();
 
+    // Stop media tracks
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((t) => t.stop());
       localStreamRef.current = null;
     }
 
+    // Disconnect socket
     if (socketRef.current) {
       removeAllListeners(socketRef.current);
       socketRef.current.disconnect();
       socketRef.current = null;
     }
 
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-    if (previewVideoRef.current) {
-      previewVideoRef.current.srcObject = null;
-    }
+    // Clear video sources
+    if (videoRef.current) videoRef.current.srcObject = null;
+    if (previewVideoRef.current) previewVideoRef.current.srcObject = null;
 
-    // Stats interval cleanup
+    // Clear intervals
     if (statsIntervalRef.current) {
       clearInterval(statsIntervalRef.current);
       statsIntervalRef.current = null;
     }
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
     prevBytesSentRef.current.clear();
+    totalBytesSentRef.current = 0;
+    shareStartRef.current = 0;
 
+    // Reset all state
     setConnectionStatus("disconnected");
     setIsSharing(false);
     setRoomId("");
@@ -279,156 +534,46 @@ export function useLocalCast(): UseLocalCastReturn {
     setError(null);
     setIsFullscreen(false);
     setConnectionQuality("good");
-    setHostId("");
+    hostIdRef.current = "";
     setWaitingApproval(false);
     setChatMessages([]);
     setChatInput("");
     setShowChatPanel(false);
     setUnreadCount(0);
     setRecentReactions([]);
-    setCurrentBitrate(0);
-
-    shareStartRef.current = null;
     setElapsedTime(0);
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
-      timerIntervalRef.current = null;
-    }
-
-    setStreamResolution("—");
+    setStreamResolution("---");
+    setCurrentBitrate(0);
+    setEstimatedDataTransferred(0);
+    setLatency(0);
+    setCopied(false);
+    setConnectionLog([]);
   }, [removeAllListeners]);
 
-  // ── Feature: Session Timer effect ──
-  useEffect(() => {
-    if (isSharing && !shareStartRef.current) {
-      shareStartRef.current = new Date();
-      timerIntervalRef.current = setInterval(() => {
-        if (shareStartRef.current) {
-          setElapsedTime(Date.now() - shareStartRef.current.getTime());
-        }
-      }, 1000);
-    } else if (!isSharing && shareStartRef.current) {
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-        timerIntervalRef.current = null;
-      }
-    }
-    return () => {
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-      }
-    };
-  }, [isSharing]);
+  // ═══════════════════════════════════════════════════════════════════════
+  // WEBRTC — Broadcaster: Create Peer for a Viewer
+  // ═══════════════════════════════════════════════════════════════════════
 
-  // ── Feature: Detect stream resolution ──
-  useEffect(() => {
-    if (isSharing && previewVideoRef.current) {
-      const video = previewVideoRef.current;
-      const updateResolution = () => {
-        if (video.videoWidth && video.videoHeight) {
-          setStreamResolution(`${video.videoWidth}×${video.videoHeight}`);
-        }
-      };
-      video.addEventListener("loadedmetadata", updateResolution);
-      const poll = setInterval(() => {
-        updateResolution();
-      }, 2000);
-      return () => {
-        video.removeEventListener("loadedmetadata", updateResolution);
-        clearInterval(poll);
-      };
-    }
-  }, [isSharing]);
-
-  // ── Feature: Live bitrate stats for broadcaster ──
-  useEffect(() => {
-    if (!isSharing || peersRef.current.size === 0) return;
-
-    statsIntervalRef.current = setInterval(() => {
-      peersRef.current.forEach((pc) => {
-        const stats = pc.getStats();
-        stats.then((report) => {
-          report.forEach((value) => {
-            if (value.type === "outbound-rtp" && value.kind === "video") {
-              const bytes = value.bytesSent ?? 0;
-              const prev = prevBytesSentRef.current.get(pc.id) ?? 0;
-              const delta = bytes - prev;
-              const bitrate = (delta * 8) / 3;
-              setCurrentBitrate(bitrate);
-              prevBytesSentRef.current.set(pc.id, bytes);
-            }
-          });
-        });
-      });
-    }, 3000);
-    return () => {
-      if (statsIntervalRef.current) {
-        clearInterval(statsIntervalRef.current);
-        statsIntervalRef.current = null;
-      }
-    };
-  }, [isSharing, viewers.length]);
-
-  // ── Copy room code ──
-  const copyRoomCode = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(roomId);
-      setCopied(true);
-      toast.success("Room code copied!");
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast.error("Failed to copy");
-    }
-  }, [roomId]);
-
-  // ── Send Chat Message ──
-  const sendChatMessage = useCallback(() => {
-    const msg = chatInput.trim();
-    if (!msg || !socketRef.current?.connected || !roomId) return;
-
-    const socket = socketRef.current;
-    const senderType = isSharing ? "host" : "viewer";
-    const senderName = isSharing ? "Host" : parseDeviceInfo(navigator.userAgent).browser;
-
-    socket.emit("CHAT_MESSAGE", {
-      roomId,
-      message: msg,
-      senderName,
-      senderType,
-    });
-    setChatInput("");
-  }, [chatInput, roomId, isSharing]);
-
-  // ── Send Reaction (viewer only) ──
-  const sendReaction = useCallback((emoji: string) => {
-    if (!socketRef.current?.connected || !roomId) return;
-    socketRef.current.emit("REACTION", {
-      roomId,
-      emoji,
-    });
-  }, [roomId]);
-
-  // ── Broadcaster: Create Peer for Viewer ──
   const createBroadcasterPeer = useCallback(
     (viewerId: string, socket: Socket, stream: MediaStream) => {
+      // Close existing peer if any
+      const existing = peersRef.current.get(viewerId);
+      if (existing) existing.close();
+
       const pc = new RTCPeerConnection(ICE_CONFIG);
       peersRef.current.set(viewerId, pc);
+      pendingCandidatesRef.current.set(viewerId, []);
 
-      if (!pendingCandidatesRef.current.has(viewerId)) {
-        pendingCandidatesRef.current.set(viewerId, []);
-      }
+      // Add local tracks
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
-      stream.getTracks().forEach((track) => {
-        pc.addTrack(track, stream);
-      });
-
-      // Set bitrate on sender
+      // When negotiation is needed, create & send offer
       pc.onnegotiationneeded = async () => {
         try {
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
 
-          // Set bitrate constraint on video sender
+          // Apply bitrate constraint on video sender
           const senders = pc.getSenders();
           const videoSender = senders.find((s) => s.track?.kind === "video");
           if (videoSender) {
@@ -444,10 +589,11 @@ export function useLocalCast(): UseLocalCastReturn {
             signal: offer,
           });
         } catch (err) {
-          console.error("Error creating offer:", err);
+          console.error("[LocalCast] Error creating offer:", err);
         }
       };
 
+      // ICE candidate → trickle to viewer
       pc.onicecandidate = (event) => {
         if (event.candidate) {
           socket.emit("WEBRTC_SIGNAL", {
@@ -457,8 +603,12 @@ export function useLocalCast(): UseLocalCastReturn {
         }
       };
 
+      // Connection state monitoring
       pc.onconnectionstatechange = () => {
-        if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
+        if (
+          pc.connectionState === "disconnected" ||
+          pc.connectionState === "failed"
+        ) {
           setViewers((prev) => prev.filter((v) => v.id !== viewerId));
           pc.close();
           peersRef.current.delete(viewerId);
@@ -467,242 +617,78 @@ export function useLocalCast(): UseLocalCastReturn {
         }
       };
     },
-    [qualityPreset]
+    [qualityPreset],
   );
 
-  // ── Broadcaster: Handle incoming signal from viewer ──
+  // ═══════════════════════════════════════════════════════════════════════
+  // WEBRTC — Broadcaster: Handle Incoming Signal from Viewer
+  // ═══════════════════════════════════════════════════════════════════════
+
   const handleBroadcasterSignal = useCallback(
     (data: { from: string; signal: unknown }) => {
-      const viewerId = data.from;
-      const signal = data.signal;
+      const { from: viewerId, signal } = data;
       if (!viewerId || !signal) return;
 
       const pc = peersRef.current.get(viewerId);
       if (!pc) return;
 
-      const sig = signal as RTCSessionDescriptionInit | RTCIceCandidateInit;
+      const sig = signal as
+        | RTCSessionDescriptionInit
+        | RTCIceCandidateInit;
 
       if ("type" in sig && sig.type === "answer") {
-        pc.setRemoteDescription(new RTCSessionDescription(sig as RTCSessionDescriptionInit))
-          .catch((err) => console.error("Error setting remote description:", err));
+        // Viewer sent answer → set remote description
+        pc.setRemoteDescription(
+          new RTCSessionDescription(sig as RTCSessionDescriptionInit),
+        ).catch((err) =>
+          console.error("[LocalCast] Error setting remote description:", err),
+        );
       } else if ("candidate" in sig) {
+        // ICE candidate
         const candidate = sig as RTCIceCandidateInit;
         if (pc.remoteDescription) {
-          pc.addIceCandidate(new RTCIceCandidate(candidate)).catch((err) =>
-            console.error("Error adding ICE candidate:", err)
+          pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(
+            (err) => console.error("[LocalCast] Error adding ICE candidate:", err),
           );
         } else {
+          // Queue until remote description is set
           const pending = pendingCandidatesRef.current.get(viewerId) || [];
           pending.push(candidate);
           pendingCandidatesRef.current.set(viewerId, pending);
         }
       }
     },
-    []
+    [],
   );
 
-  // ── Broadcaster: Stop Sharing ──
-  const stopSharing = useCallback(() => {
-    cleanupAll();
-    setCurrentView("home");
-    toast.success("Screen sharing stopped");
-  }, [cleanupAll]);
+  // ═══════════════════════════════════════════════════════════════════════
+  // WEBRTC — Viewer: Handle Incoming Signal from Broadcaster
+  // ═══════════════════════════════════════════════════════════════════════
 
-  // ── Broadcaster: Start Sharing ──
-  const startSharing = useCallback(async () => {
-    try {
-      setConnectionStatus("connecting");
-      setError(null);
-
-      const preset = QUALITY_PRESETS[qualityPreset];
-
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          displaySurface: "monitor",
-          width: preset.width,
-          height: preset.height,
-          frameRate: preset.frameRate,
-        },
-        audio: true,
-      });
-      localStreamRef.current = stream;
-
-      stream.getVideoTracks()[0].addEventListener("ended", () => {
-        stopSharing();
-      });
-
-      const socket = getSocket();
-      removeAllListeners(socket);
-
-      socket.on("connect", () => {
-        socket.emit("CREATE_ROOM", {
-          requireApproval,
-        });
-
-        socket.on("ROOM_CREATED", (data: { roomId: string; roomInfo: { hostId: string } }) => {
-          setRoomId(data.roomId);
-          setHostId(data.roomInfo?.hostId || socket.id);
-          setIsSharing(true);
-          setConnectionStatus("connected");
-          setCurrentView("share");
-          toast.success("Room created! Share the code with viewers.");
-        });
-
-        socket.on("VIEWER_JOINED", (data: { viewerId: string; viewerInfo: ViewerInfo }) => {
-          const info = data.viewerInfo || {};
-          const ua = info.deviceName || "";
-          const parsed = parseDeviceInfo(ua);
-
-          const newViewer: ViewerInfo = {
-            id: data.viewerId,
-            deviceName: parsed.deviceName,
-            os: parsed.os,
-            browser: parsed.browser,
-            screenWidth: info.screenWidth,
-            screenHeight: info.screenHeight,
-            approved: info.approved ?? !requireApproval,
-          };
-          setViewers((prev) => {
-            if (prev.some((v) => v.id === data.viewerId)) return prev;
-            return [...prev, newViewer];
-          });
-          toast.info(`${parsed.deviceName} joined`);
-
-          if (newViewer.approved) {
-            createBroadcasterPeer(data.viewerId, socket, stream);
-          }
-        });
-
-        socket.on("WEBRTC_SIGNAL", handleBroadcasterSignal);
-
-        socket.on("VIEWER_DISCONNECTED", (data: { viewerId: string }) => {
-          setViewers((prev) => prev.filter((v) => v.id !== data.viewerId));
-          const pc = peersRef.current.get(data.viewerId);
-          if (pc) {
-            pc.close();
-            peersRef.current.delete(data.viewerId);
-          }
-          pendingCandidatesRef.current.delete(data.viewerId);
-          toast.info("A viewer left");
-        });
-
-        socket.on("CHAT_MESSAGE", (data: ChatMessage) => {
-          setChatMessages((prev) => [...prev.slice(-99), { ...data, id: data.id || generateId() }]);
-          if (!showChatPanel) {
-            setUnreadCount((c) => c + 1);
-          }
-        });
-
-        socket.on("REACTION", (data: Reaction) => {
-          const reaction: Reaction = { ...data, id: generateId() };
-          setRecentReactions((prev) => [...prev.slice(-19), reaction]);
-          // Auto-remove after 5s
-          setTimeout(() => {
-            setRecentReactions((prev) => prev.filter((r) => r.id !== reaction.id));
-          }, 5000);
-        });
-
-        socket.on("ERROR", (data: { message: string }) => {
-          toast.error(data.message);
-          setError(data.message);
-        });
-      });
-
-      socket.on("disconnect", () => {
-        setConnectionStatus("disconnected");
-      });
-
-      socket.on("connect_error", () => {
-        setConnectionStatus("disconnected");
-        toast.error("Cannot connect to signaling server");
-        setError("Cannot connect to signaling server. Make sure it's running on port 3003.");
-      });
-    } catch (err: unknown) {
-      const name = (err as DOMException)?.name;
-      if (name === "NotAllowedError") {
-        toast.error("Screen sharing was cancelled");
-      } else {
-        toast.error("Failed to start screen sharing");
-      }
-      setConnectionStatus("disconnected");
-      setError("Screen sharing permission denied or unavailable.");
-    }
-  }, [getSocket, qualityPreset, requireApproval, removeAllListeners, createBroadcasterPeer, handleBroadcasterSignal, stopSharing, showChatPanel]);
-
-  // ── Broadcaster: Approve Viewer ──
-  const approveViewer = useCallback(
-    (viewerId: string) => {
-      const socket = getSocket();
-      const stream = localStreamRef.current;
-      if (socket && stream) {
-        socket.emit("APPROVE_VIEWER", { viewerId });
-        setViewers((prev) =>
-          prev.map((v) => (v.id === viewerId ? { ...v, approved: true } : v))
-        );
-        createBroadcasterPeer(viewerId, socket, stream);
-        toast.success("Viewer approved");
-      }
-    },
-    [getSocket, createBroadcasterPeer]
-  );
-
-  // ── Broadcaster: Deny Viewer ──
-  const denyViewer = useCallback(
-    (viewerId: string) => {
-      const socket = getSocket();
-      socket.emit("DENY_VIEWER", { viewerId });
-      setViewers((prev) => prev.filter((v) => v.id !== viewerId));
-      const pc = peersRef.current.get(viewerId);
-      if (pc) {
-        pc.close();
-        peersRef.current.delete(viewerId);
-      }
-      pendingCandidatesRef.current.delete(viewerId);
-      toast.info("Viewer denied");
-    },
-    [getSocket]
-  );
-
-  // ── Broadcaster: Disconnect Viewer ──
-  const disconnectViewer = useCallback(
-    (viewerId: string) => {
-      const socket = getSocket();
-      socket.emit("DISCONNECT_VIEWER", { viewerId });
-      setViewers((prev) => prev.filter((v) => v.id !== viewerId));
-      const pc = peersRef.current.get(viewerId);
-      if (pc) {
-        pc.close();
-        peersRef.current.delete(viewerId);
-      }
-      pendingCandidatesRef.current.delete(viewerId);
-      toast.info("Viewer disconnected");
-    },
-    [getSocket]
-  );
-
-  // ── Viewer: Handle incoming signal from broadcaster ──
   const handleViewerSignal = useCallback(
     (data: { from: string; signal: unknown }) => {
-      const socket = getSocket();
-      const broadcasterId = data.from;
-      const signal = data.signal;
+      const socket = socketRef.current;
+      if (!socket) return;
+
+      const { from: broadcasterId, signal } = data;
       if (!signal) return;
 
-      const sig = signal as RTCSessionDescriptionInit | RTCIceCandidateInit;
+      const sig = signal as
+        | RTCSessionDescriptionInit
+        | RTCIceCandidateInit;
 
       if ("type" in sig && sig.type === "offer") {
+        // Broadcaster sent offer → create answer
         const offer = sig as RTCSessionDescriptionInit;
 
+        // Close old peer if any
         if (viewerPeerRef.current) {
           viewerPeerRef.current.close();
         }
 
         const pc = new RTCPeerConnection(ICE_CONFIG);
         viewerPeerRef.current = pc;
-
-        if (!pendingCandidatesRef.current.has(broadcasterId)) {
-          pendingCandidatesRef.current.set(broadcasterId, []);
-        }
+        pendingCandidatesRef.current.set(broadcasterId, []);
 
         pc.ontrack = (event) => {
           if (videoRef.current && event.streams[0]) {
@@ -719,11 +705,16 @@ export function useLocalCast(): UseLocalCastReturn {
           }
         };
 
+        // Connection quality monitoring
         pc.onconnectionstatechange = () => {
-          if (pc.connectionState === "connected") {
-            setConnectionQuality("good");
-          } else if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
-            setConnectionQuality("poor");
+          switch (pc.connectionState) {
+            case "connected":
+              setConnectionQuality("good");
+              break;
+            case "disconnected":
+            case "failed":
+              setConnectionQuality("poor");
+              break;
           }
         };
 
@@ -755,140 +746,375 @@ export function useLocalCast(): UseLocalCastReturn {
               signal: answer,
             });
 
-            const pending = pendingCandidatesRef.current.get(broadcasterId) || [];
+            // Flush queued ICE candidates
+            const pending =
+              pendingCandidatesRef.current.get(broadcasterId) || [];
             for (const cand of pending) {
-              await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+              await pc
+                .addIceCandidate(new RTCIceCandidate(cand))
+                .catch(() => {});
             }
             pendingCandidatesRef.current.delete(broadcasterId);
           })
           .catch((err) => {
-            console.error("Error handling offer:", err);
+            console.error("[LocalCast] Error handling offer:", err);
             toast.error("Failed to establish connection");
           });
       } else if ("candidate" in sig) {
+        // ICE candidate from broadcaster
         const candidate = sig as RTCIceCandidateInit;
 
-        if (viewerPeerRef.current && viewerPeerRef.current.remoteDescription) {
+        if (
+          viewerPeerRef.current &&
+          viewerPeerRef.current.remoteDescription
+        ) {
           viewerPeerRef.current
             .addIceCandidate(new RTCIceCandidate(candidate))
             .catch(() => {});
         } else {
-          const pending = pendingCandidatesRef.current.get(broadcasterId) || [];
+          const pending =
+            pendingCandidatesRef.current.get(broadcasterId) || [];
           pending.push(candidate);
           pendingCandidatesRef.current.set(broadcasterId, pending);
         }
       }
-
-      void socket;
     },
-    [getSocket]
+    [],
   );
 
-  // ── Viewer: Join Room ──
-  const joinRoom = useCallback(() => {
-    const code = viewerInput.trim().toUpperCase();
-    if (code.length !== 6) {
-      toast.error("Please enter a valid 6-character room code");
-      return;
-    }
+  // ═══════════════════════════════════════════════════════════════════════
+  // ACTIONS — Broadcaster
+  // ═══════════════════════════════════════════════════════════════════════
 
-    setConnectionStatus("connecting");
-    setError(null);
+  const startSharing = useCallback(async () => {
+    try {
+      setConnectionStatus("connecting");
+      setError(null);
 
-    const socket = getSocket();
-    removeAllListeners(socket);
+      const preset = QUALITY_PRESETS[qualityPreset];
 
-    const myDeviceInfo = parseDeviceInfo(navigator.userAgent);
+      // Get screen media
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          displaySurface: "monitor",
+          width: preset.width,
+          height: preset.height,
+          frameRate: preset.frameRate,
+        },
+        audio: true,
+      });
+      localStreamRef.current = stream;
 
-    socket.on("connect", () => {
-      socket.emit("JOIN_ROOM", { roomId: code });
+      // If user stops sharing via browser UI, stop session
+      stream.getVideoTracks()[0].addEventListener("ended", () => {
+        stopSharing();
+      });
 
-      socket.on("ROOM_JOINED", (data: { roomId: string; hostId: string; approved: boolean }) => {
-        setHostId(data.hostId);
-        setRoomId(data.roomId);
+      // Connect to signaling server
+      const socket = getOrCreateSocket();
+      removeAllListeners(socket);
 
-        if (data.approved) {
+      socket.on("connect_error", () => {
+        setConnectionStatus("disconnected");
+        toast.error("Cannot connect to signaling server");
+        setError(
+          "Cannot connect to signaling server. Make sure it's running on port 3003.",
+        );
+      });
+
+      socket.on("connect", () => {
+        // Create room
+        socket.emit("CREATE_ROOM", { requireApproval });
+
+        socket.on("ROOM_CREATED", (data: { roomId: string; roomInfo?: { hostId: string } }) => {
+          setRoomId(data.roomId);
+          hostIdRef.current = data.roomInfo?.hostId || socket.id;
+          setIsSharing(true);
           setConnectionStatus("connected");
-          setCurrentView("watching");
-          toast.success("Connected to room!");
-        } else {
-          setWaitingApproval(true);
-          toast.info("Waiting for host approval...");
-        }
+          setCurrentView("share");
+          toast.success("Room created! Share the code with viewers.");
+        });
 
-        socket.emit("DEVICE_INFO", {
-          deviceName: myDeviceInfo.deviceName,
-          os: myDeviceInfo.os,
-          browser: myDeviceInfo.browser,
-          screenWidth: screen.width,
-          screenHeight: screen.height,
+        socket.on(
+          "VIEWER_JOINED",
+          (data: { viewerId: string; viewerInfo: Viewer }) => {
+            const info = data.viewerInfo || {};
+            const newViewer: Viewer = {
+              id: data.viewerId,
+              deviceName: info.deviceName || parseDeviceInfo(navigator.userAgent).deviceName,
+              os: info.os || parseDeviceInfo(navigator.userAgent).os,
+              browser: info.browser || parseDeviceInfo(navigator.userAgent).browser,
+              screenWidth: info.screenWidth,
+              screenHeight: info.screenHeight,
+              connectedAt: info.connectedAt || Date.now(),
+              approved: info.approved ?? !requireApproval,
+            };
+            setViewers((prev) => {
+              if (prev.some((v) => v.id === data.viewerId)) return prev;
+              return [...prev, newViewer];
+            });
+
+            const name = newViewer.deviceName || "A viewer";
+            toast.info(`${name} joined`);
+            addConnectionLog("viewer_joined", `${name} joined the room`);
+            if (soundEnabled) playNotificationSound("join");
+
+            if (newViewer.approved) {
+              createBroadcasterPeer(data.viewerId, socket, stream);
+            }
+          },
+        );
+
+        socket.on("WEBRTC_SIGNAL", handleBroadcasterSignal);
+
+        socket.on(
+          "VIEWER_DISCONNECTED",
+          (data: { viewerId: string }) => {
+            setViewers((prev) =>
+              prev.filter((v) => v.id !== data.viewerId),
+            );
+            const pc = peersRef.current.get(data.viewerId);
+            if (pc) {
+              pc.close();
+              peersRef.current.delete(data.viewerId);
+            }
+            pendingCandidatesRef.current.delete(data.viewerId);
+            toast.info("A viewer left");
+            addConnectionLog("viewer_left", "A viewer left the room");
+            if (soundEnabled) playNotificationSound("leave");
+          },
+        );
+
+        socket.on("CHAT_MESSAGE", (data: ChatMessage) => {
+          setChatMessages((prev) => [
+            ...prev.slice(-99),
+            { ...data, id: data.id || generateId() },
+          ]);
+          setUnreadCount((c) => c + 1);
+          addConnectionLog("chat", `${data.senderName}: ${data.message}`);
+          if (soundEnabled) playNotificationSound("chat");
+        });
+
+        socket.on("REACTION", (data: { roomId: string; emoji: string; viewerId: string; timestamp: number }) => {
+          const reaction: Reaction = {
+            emoji: data.emoji,
+            id: generateId(),
+            viewerId: data.viewerId,
+            timestamp: data.timestamp,
+          };
+          setRecentReactions((prev) => [...prev.slice(-19), reaction]);
+          setTimeout(() => {
+            setRecentReactions((prev) =>
+              prev.filter((r) => r.id !== reaction.id),
+            );
+          }, 5000);
+          if (soundEnabled) playNotificationSound("reaction");
+        });
+
+        socket.on("ERROR", (data: { message: string }) => {
+          toast.error(data.message);
+          setError(data.message);
         });
       });
 
-      socket.on("VIEWER_APPROVED", () => {
-        setWaitingApproval(false);
-        setConnectionStatus("connected");
-        setCurrentView("watching");
-        toast.success("Approved by host!");
-      });
-
-      socket.on("VIEWER_DENIED", () => {
-        toast.error("You were denied by the host");
-        setError("The host denied your request to join.");
-        cleanupAll();
-        setCurrentView("join");
-      });
-
-      socket.on("WEBRTC_SIGNAL", (data: { from: string; signal: unknown }) => {
-        handleViewerSignal(data);
-      });
-
-      socket.on("HOST_DISCONNECTED", () => {
-        toast.error("The host ended the session");
-        setError("The host ended the screen sharing session.");
-        cleanupAll();
-        setCurrentView("home");
-      });
-
-      socket.on("ROOM_NOT_FOUND", () => {
-        toast.error("Room not found");
-        setError("Room not found. Please check the code and try again.");
+      socket.on("disconnect", () => {
         setConnectionStatus("disconnected");
       });
+    } catch (err: unknown) {
+      const name = (err as DOMException)?.name;
+      if (name === "NotAllowedError") {
+        toast.error("Screen sharing was cancelled");
+      } else {
+        toast.error("Failed to start screen sharing");
+      }
+      setConnectionStatus("disconnected");
+      setError("Screen sharing permission denied or unavailable.");
+    }
+  }, [qualityPreset, requireApproval, getOrCreateSocket, removeAllListeners, createBroadcasterPeer, handleBroadcasterSignal]);
 
-      socket.on("KICKED", () => {
-        toast.error("You were removed from the room");
-        setError("You were removed from the room by the host.");
-        cleanupAll();
-        setCurrentView("home");
+  const stopSharing = useCallback(() => {
+    cleanupAll();
+    setCurrentView("home");
+    toast.success("Screen sharing stopped");
+  }, [cleanupAll]);
+
+  const approveViewer = useCallback(
+    (viewerId: string) => {
+      const socket = socketRef.current;
+      const stream = localStreamRef.current;
+      if (!socket || !stream) return;
+
+      socket.emit("APPROVE_VIEWER", { viewerId });
+      setViewers((prev) =>
+        prev.map((v) =>
+          v.id === viewerId ? { ...v, approved: true } : v,
+        ),
+      );
+      createBroadcasterPeer(viewerId, socket, stream);
+      toast.success("Viewer approved");
+    },
+    [createBroadcasterPeer],
+  );
+
+  const denyViewer = useCallback((viewerId: string) => {
+    const socket = socketRef.current;
+    if (!socket) return;
+
+    socket.emit("DENY_VIEWER", { viewerId });
+    setViewers((prev) => prev.filter((v) => v.id !== viewerId));
+    const pc = peersRef.current.get(viewerId);
+    if (pc) {
+      pc.close();
+      peersRef.current.delete(viewerId);
+    }
+    pendingCandidatesRef.current.delete(viewerId);
+    toast.info("Viewer denied");
+  }, []);
+
+  const disconnectViewer = useCallback((viewerId: string) => {
+    const socket = socketRef.current;
+    if (!socket) return;
+
+    socket.emit("DISCONNECT_VIEWER", { viewerId });
+    setViewers((prev) => prev.filter((v) => v.id !== viewerId));
+    const pc = peersRef.current.get(viewerId);
+    if (pc) {
+      pc.close();
+      peersRef.current.delete(viewerId);
+    }
+    pendingCandidatesRef.current.delete(viewerId);
+    toast.info("Viewer disconnected");
+  }, []);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // ACTIONS — Viewer
+  // ═══════════════════════════════════════════════════════════════════════
+
+  const joinRoom = useCallback(
+    (inputRoomId?: string) => {
+      const code = (inputRoomId || viewerInput).trim().toUpperCase();
+      if (code.length !== 6) {
+        toast.error("Please enter a valid 6-character room code");
+        return;
+      }
+
+      setConnectionStatus("connecting");
+      setError(null);
+
+      const socket = getOrCreateSocket();
+      removeAllListeners(socket);
+
+      const myDeviceInfo = parseDeviceInfo(navigator.userAgent);
+
+      socket.on("connect_error", () => {
+        setConnectionStatus("disconnected");
+        toast.error("Cannot connect to signaling server");
+        setError(
+          "Cannot connect to signaling server. Make sure it's running on port 3003.",
+        );
       });
 
-      socket.on("CHAT_MESSAGE", (data: ChatMessage) => {
-        setChatMessages((prev) => [...prev.slice(-99), { ...data, id: data.id || generateId() }]);
-        if (!showChatPanel) {
+      socket.on("connect", () => {
+        socket.emit("JOIN_ROOM", { roomId: code });
+
+        socket.on(
+          "ROOM_JOINED",
+          (data: {
+            roomId: string;
+            hostId: string;
+            approved: boolean;
+          }) => {
+            hostIdRef.current = data.hostId;
+            setRoomId(data.roomId);
+
+            if (data.approved) {
+              setConnectionStatus("connected");
+              setCurrentView("watching");
+              toast.success("Connected to room!");
+            } else {
+              setWaitingApproval(true);
+              toast.info("Waiting for host approval...");
+            }
+
+            // Send device info (use displayName if set)
+            socket.emit("DEVICE_INFO", {
+              deviceName: displayName || myDeviceInfo.deviceName,
+              os: myDeviceInfo.os,
+              browser: myDeviceInfo.browser,
+              screenWidth: screen.width,
+              screenHeight: screen.height,
+            });
+          },
+        );
+
+        socket.on("VIEWER_APPROVED", () => {
+          setWaitingApproval(false);
+          setConnectionStatus("connected");
+          setCurrentView("watching");
+          toast.success("Approved by host!");
+        });
+
+        socket.on("VIEWER_DENIED", () => {
+          toast.error("You were denied by the host");
+          setError("The host denied your request to join.");
+          cleanupAll();
+          setCurrentView("join");
+        });
+
+        socket.on("WEBRTC_SIGNAL", (data: { from: string; signal: unknown }) => {
+          handleViewerSignal(data);
+        });
+
+        socket.on("HOST_DISCONNECTED", () => {
+          toast.error("The host ended the session");
+          setError("The host ended the screen sharing session.");
+          cleanupAll();
+          setCurrentView("home");
+        });
+
+        socket.on("ROOM_NOT_FOUND", () => {
+          toast.error("Room not found");
+          setError("Room not found. Please check the code and try again.");
+          setConnectionStatus("disconnected");
+        });
+
+        socket.on("KICKED", () => {
+          toast.error("You were removed from the room");
+          setError("You were removed from the room by the host.");
+          cleanupAll();
+          setCurrentView("home");
+        });
+
+        socket.on("SERVER_SHUTDOWN", () => {
+          toast.error("Server is shutting down");
+          setError("The server is shutting down.");
+          cleanupAll();
+          setCurrentView("home");
+        });
+
+        socket.on("CHAT_MESSAGE", (data: ChatMessage) => {
+          setChatMessages((prev) => [
+            ...prev.slice(-99),
+            { ...data, id: data.id || generateId() },
+          ]);
           setUnreadCount((c) => c + 1);
-        }
+          if (soundEnabled) playNotificationSound("chat");
+        });
+
+        socket.on("ERROR", (data: { message: string }) => {
+          toast.error(data.message);
+          setError(data.message);
+          setConnectionStatus("disconnected");
+        });
       });
 
-      socket.on("ERROR", (data: { message: string }) => {
-        toast.error(data.message);
-        setError(data.message);
+      socket.on("disconnect", () => {
         setConnectionStatus("disconnected");
       });
-    });
+    },
+    [getOrCreateSocket, removeAllListeners, handleViewerSignal, cleanupAll, viewerInput, displayName, soundEnabled],
+  );
 
-    socket.on("disconnect", () => {
-      setConnectionStatus("disconnected");
-    });
-
-    socket.on("connect_error", () => {
-      setConnectionStatus("disconnected");
-      toast.error("Cannot connect to signaling server");
-      setError("Cannot connect to signaling server. Make sure it's running on port 3003.");
-    });
-  }, [viewerInput, getSocket, cleanupAll, removeAllListeners, handleViewerSignal, showChatPanel]);
-
-  // ── Viewer: Leave Room ──
   const leaveRoom = useCallback(() => {
     cleanupAll();
     setViewerInput("");
@@ -896,24 +1122,210 @@ export function useLocalCast(): UseLocalCastReturn {
     toast.success("Left the room");
   }, [cleanupAll]);
 
-  // ── Fullscreen Toggle ──
+  // ═══════════════════════════════════════════════════════════════════════
+  // ACTIONS — UI Controls
+  // ═══════════════════════════════════════════════════════════════════════
+
   const toggleFullscreen = useCallback(() => {
     if (!containerRef.current) return;
 
     if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen().then(() => {
-        setIsFullscreen(true);
-      }).catch(() => {
-        toast.error("Failed to enter fullscreen");
-      });
+      containerRef.current
+        .requestFullscreen()
+        .then(() => setIsFullscreen(true))
+        .catch(() => toast.error("Failed to enter fullscreen"));
     } else {
-      document.exitFullscreen().then(() => {
-        setIsFullscreen(false);
-      }).catch(() => {});
+      document
+        .exitFullscreen()
+        .then(() => setIsFullscreen(false))
+        .catch(() => {});
     }
   }, []);
 
-  // ── Feature: Keyboard Shortcuts ──
+  const togglePiP = useCallback(async () => {
+    if (!videoRef.current) return;
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+      } else {
+        await videoRef.current.requestPictureInPicture();
+      }
+    } catch {
+      toast.error("Picture-in-Picture not available");
+    }
+  }, []);
+
+  const copyRoomCode = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(roomId);
+      setCopied(true);
+      toast.success("Room code copied!");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Failed to copy");
+    }
+  }, [roomId]);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // ACTIONS — Chat & Reactions
+  // ═══════════════════════════════════════════════════════════════════════
+
+  const sendChatMessage = useCallback(() => {
+    const msg = chatInput.trim();
+    if (!msg || !socketRef.current?.connected || !roomId) return;
+
+    const senderType: "host" | "viewer" = isSharing ? "host" : "viewer";
+    const senderName = isSharing
+      ? "Host"
+      : displayName || parseDeviceInfo(navigator.userAgent).browser;
+
+    socketRef.current.emit("CHAT_MESSAGE", {
+      roomId,
+      message: msg,
+      senderName,
+      senderType,
+    });
+    setChatInput("");
+  }, [chatInput, roomId, isSharing, displayName]);
+
+  const sendReaction = useCallback(
+    (emoji: string) => {
+      if (!socketRef.current?.connected || !roomId) return;
+      socketRef.current.emit("REACTION", { roomId, emoji });
+    },
+    [roomId],
+  );
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // EFFECTS
+  // ═══════════════════════════════════════════════════════════════════════
+
+  // ── Session timer (every 1 s while sharing) ──
+  useEffect(() => {
+    if (isSharing && !shareStartRef.current) {
+      shareStartRef.current = Date.now();
+      timerRef.current = setInterval(() => {
+        setElapsedTime(Date.now() - shareStartRef.current);
+      }, 1000);
+    }
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [isSharing]);
+
+  // ── Detect stream resolution from preview video ──
+  useEffect(() => {
+    if (!isSharing || !previewVideoRef.current) return;
+    const video = previewVideoRef.current;
+
+    const update = () => {
+      if (video.videoWidth && video.videoHeight) {
+        setStreamResolution(`${video.videoWidth}\u00D7${video.videoHeight}`);
+      }
+    };
+
+    video.addEventListener("loadedmetadata", update);
+    const poll = setInterval(update, 2000);
+    return () => {
+      video.removeEventListener("loadedmetadata", update);
+      clearInterval(poll);
+    };
+  }, [isSharing]);
+
+  // ── Attach local stream to preview video ──
+  useEffect(() => {
+    if (
+      currentView === "share" &&
+      isSharing &&
+      previewVideoRef.current &&
+      localStreamRef.current
+    ) {
+      previewVideoRef.current.srcObject = localStreamRef.current;
+    }
+  }, [currentView, isSharing]);
+
+  // ── Live bitrate & data transferred monitoring ──
+  useEffect(() => {
+    if (!isSharing) {
+      if (statsIntervalRef.current) {
+        clearInterval(statsIntervalRef.current);
+        statsIntervalRef.current = null;
+      }
+      return;
+    }
+
+    statsIntervalRef.current = setInterval(() => {
+      let totalBitrate = 0;
+      let totalBytes = 0;
+      let peerCount = 0;
+
+      peersRef.current.forEach((pc) => {
+        const statsReport = pc.getStats();
+        statsReport.then((report) => {
+          report.forEach((stat) => {
+            if (
+              stat.type === "outbound-rtp" &&
+              stat.kind === "video"
+            ) {
+              const bytes = (stat as RTCOutboundRtpStreamStats).bytesSent ?? 0;
+              const prev = prevBytesSentRef.current.get(pc.id) ?? 0;
+              const delta = bytes - prev;
+              if (delta > 0) {
+                totalBitrate += (delta * 8) / 2; // 2-second interval
+              }
+              prevBytesSentRef.current.set(pc.id, bytes);
+              totalBytes = bytes;
+            }
+          });
+        });
+        peerCount++;
+      });
+
+      // Update after a microtask to let getStats resolve
+      setTimeout(() => {
+        if (totalBitrate > 0) {
+          setCurrentBitrate(Math.round(totalBitrate));
+        }
+        if (totalBytes > 0) {
+          totalBytesSentRef.current = totalBytes;
+          setEstimatedDataTransferred(totalBytes);
+        }
+      }, 50);
+    }, 2000);
+
+    return () => {
+      if (statsIntervalRef.current) {
+        clearInterval(statsIntervalRef.current);
+        statsIntervalRef.current = null;
+      }
+    };
+  }, [isSharing]);
+
+  // ── Latency measurement via PING/PONG ──
+  useEffect(() => {
+    if (connectionStatus !== "connected" || !socketRef.current) return;
+
+    const interval = setInterval(() => {
+      const socket = socketRef.current;
+      if (!socket?.connected) return;
+      lastPingRef.current = Date.now();
+      socket.emit("PING");
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [connectionStatus]);
+
+  // ── Fullscreen change listener ──
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", handler);
+    return () => document.removeEventListener("fullscreenchange", handler);
+  }, []);
+
+  // ── Keyboard shortcuts ──
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (
@@ -964,35 +1376,63 @@ export function useLocalCast(): UseLocalCastReturn {
 
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [currentView, isMuted, showShortcutsDialog, showChatPanel, leaveRoom, toggleFullscreen, cleanupAll]);
+  }, [
+    currentView,
+    isMuted,
+    showShortcutsDialog,
+    showChatPanel,
+    leaveRoom,
+    toggleFullscreen,
+    cleanupAll,
+  ]);
 
-  // ── Picture-in-Picture Toggle ──
-  const togglePiP = useCallback(async () => {
-    if (!videoRef.current) return;
-    try {
-      if (document.pictureInPictureElement) {
-        await document.exitPictureInPicture();
-      } else {
-        await videoRef.current.requestPictureInPicture();
+  // ── Auto Quality Adaptation (broadcaster only) ──
+  useEffect(() => {
+    if (!isSharing || !isAutoQualityActive) {
+      if (autoQualityTimerRef.current) {
+        clearInterval(autoQualityTimerRef.current);
+        autoQualityTimerRef.current = null;
       }
-    } catch {
-      toast.error("Picture-in-Picture not available");
+      poorQualitySinceRef.current = 0;
+      goodQualitySinceRef.current = 0;
+      return;
     }
-  }, []);
 
-  // Listen for fullscreen changes
-  useEffect(() => {
-    const handler = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener("fullscreenchange", handler);
-    return () => document.removeEventListener("fullscreenchange", handler);
-  }, []);
-
-  // ── Set preview video source ──
-  useEffect(() => {
-    if (currentView === "share" && previewVideoRef.current && localStreamRef.current) {
-      previewVideoRef.current.srcObject = localStreamRef.current;
+    const now = Date.now();
+    if (connectionQuality === "poor") {
+      if (poorQualitySinceRef.current === 0) {
+        poorQualitySinceRef.current = now;
+      }
+      if (now - poorQualitySinceRef.current > 5000) {
+        // Poor for > 5s: lower bitrate
+        const reducedBitrate = QUALITY_PRESETS[qualityPreset].bitrate / 2;
+        applyBitrateToAllPeers(reducedBitrate);
+        toast.info("Auto-adjusted: quality reduced due to poor connection", {
+          id: "auto-quality",
+        });
+        addConnectionLog("auto_quality", `Auto-adjusted: bitrate reduced to ${reducedBitrate / 1_000_000} Mbps`);
+        poorQualitySinceRef.current = 0; // Reset to avoid repeated toasts
+      }
+    } else if (connectionQuality === "good") {
+      if (goodQualitySinceRef.current === 0) {
+        goodQualitySinceRef.current = now;
+      }
+      if (now - goodQualitySinceRef.current > 10000) {
+        // Good for > 10s: restore original bitrate
+        const originalBitrate = QUALITY_PRESETS[qualityPreset].bitrate;
+        applyBitrateToAllPeers(originalBitrate);
+        toast.success("Auto-adjusted: quality restored", {
+          id: "auto-quality",
+        });
+        addConnectionLog("auto_quality", `Auto-adjusted: bitrate restored to ${originalBitrate / 1_000_000} Mbps`);
+        goodQualitySinceRef.current = 0;
+      }
+    } else {
+      // Fair: reset timers
+      poorQualitySinceRef.current = 0;
+      goodQualitySinceRef.current = 0;
     }
-  }, [currentView, isSharing]);
+  }, [isSharing, connectionQuality, isAutoQualityActive, qualityPreset, applyBitrateToAllPeers, addConnectionLog]);
 
   // ── Cleanup on unmount ──
   useEffect(() => {
@@ -1001,72 +1441,32 @@ export function useLocalCast(): UseLocalCastReturn {
     };
   }, [cleanupAll]);
 
-  // ── Derived stats ──
-  const activePeerCount = viewers.filter((v) => v.approved).length;
-  const estimatedBitrate = currentBitrate > 0 ? currentBitrate : QUALITY_PRESETS[qualityPreset].bitrate;
-  const estimatedDataTransferred = elapsedTime > 0
-    ? (elapsedTime / 1000) * (estimatedBitrate / 8) * activePeerCount
-    : 0;
-
-  // ── QR Code URL ──
-  const qrUrl =
-    typeof window !== "undefined"
-      ? `${window.location.origin}${window.location.pathname}#${roomId}`
-      : "";
-
-  // ── PiP support ──
-  const pipSupported = typeof document !== "undefined" && !!document.pictureInPictureEnabled;
-
-  // ── Latency measurement ──
-  useEffect(() => {
-    if (connectionStatus !== "connected" || !socketRef.current) return;
-
-    const interval = setInterval(() => {
-      const socket = socketRef.current;
-      if (!socket?.connected) return;
-
-      lastPingRef.current = Date.now();
-      socket.emit("PING");
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [connectionStatus]);
-
-  useEffect(() => {
-    const socket = socketRef.current;
-    if (!socket) return;
-
-    const handler = () => {
-      if (lastPingRef.current > 0) {
-        const rtt = Date.now() - lastPingRef.current;
-        setLatency(rtt);
-        lastPingRef.current = 0;
-      }
-    };
-
-    socket.on("PONG", handler);
-    return () => { socket.off("PONG", handler); };
-  }, []);
-
-  // ── Format elapsed ──
-  const elapsedDisplay = formatElapsedDisplay(elapsedTime);
+  // ═══════════════════════════════════════════════════════════════════════
+  // RETURN
+  // ═══════════════════════════════════════════════════════════════════════
 
   return {
+    // View
     currentView,
     setCurrentView,
+
+    // Broadcaster
     roomId,
     isSharing,
     requireApproval,
     setRequireApproval,
-    hostId,
     qualityPreset,
     setQualityPreset,
+
+    // Viewer
     viewerInput,
     setViewerInput,
     isMuted,
     setIsMuted,
     isFullscreen,
     connectionQuality,
+
+    // Shared
     connectionStatus,
     viewers,
     error,
@@ -1078,26 +1478,53 @@ export function useLocalCast(): UseLocalCastReturn {
     showChatPanel,
     setShowChatPanel,
     copied,
-    elapsedDisplay,
     elapsedTime,
     waitingApproval,
     setWaitingApproval,
     pipSupported,
     activePeerCount,
     estimatedDataTransferred,
-    qrUrl,
     streamResolution,
     latency,
+    currentBitrate,
+    qrUrl,
+
+    // Chat
     chatMessages,
     chatInput,
     setChatInput,
     sendChatMessage,
     unreadCount,
+
+    // Reactions
     recentReactions,
-    currentBitrate,
+
+    // Recording
+    isRecording,
+    recordingDuration,
+    startRecording,
+    stopRecording,
+
+    // Display Name
+    displayName,
+    setDisplayName,
+
+    // Sound
+    soundEnabled,
+    setSoundEnabled,
+
+    // Connection Log
+    connectionLog,
+
+    // Auto Quality
+    isAutoQualityActive,
+
+    // Refs
     videoRef,
     previewVideoRef,
     containerRef,
+
+    // Actions
     startSharing,
     stopSharing,
     approveViewer,
@@ -1113,9 +1540,18 @@ export function useLocalCast(): UseLocalCastReturn {
   };
 }
 
-function formatElapsedDisplay(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+// ─── Formatting Helpers (module-scoped, not exported) ──────────────────────
+
+function formatBitrateValue(bps: number): string {
+  if (bps < 1000) return `${Math.round(bps)} bps`;
+  if (bps < 1_000_000) return `${(bps / 1000).toFixed(0)} Kbps`;
+  return `${(bps / 1_000_000).toFixed(1)} Mbps`;
+}
+
+function formatByteValue(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024)
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }

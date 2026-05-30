@@ -20,9 +20,12 @@ import {
   WifiOff,
   SmilePlus,
   Gauge,
+  RefreshCw,
+  Radio,
+  Loader2,
 } from "lucide-react";
 
-import { pageVariants, REACTION_EMOJIS, formatBitrate } from "./types";
+import { pageVariants, REACTION_EMOJIS } from "./types";
 
 interface WatchViewProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -81,14 +84,29 @@ export function WatchView({
             variant="ghost"
             size="sm"
             onClick={onLeaveRoom}
-            className="gap-1.5"
+            className="gap-1.5 hover:text-destructive transition-colors"
           >
             <ArrowLeft className="size-4" />
             Leave
           </Button>
-          <Badge variant="outline" className="gap-1.5">
-            <Wifi className="size-3" />
-            {connectionStatus === "connected" ? "Connected" : "Connecting..."}
+          <Badge
+            variant="outline"
+            className={`gap-1.5 transition-colors ${
+              connectionStatus === "connected"
+                ? "border-emerald-200 text-emerald-700 bg-emerald-50/50 dark:border-emerald-800 dark:text-emerald-300 dark:bg-emerald-950/30"
+                : connectionStatus === "connecting"
+                  ? "border-amber-200 text-amber-700 bg-amber-50/50 dark:border-amber-800 dark:text-amber-300 dark:bg-amber-950/30"
+                  : "border-red-200 text-red-700 bg-red-50/50 dark:border-red-800 dark:text-red-300 dark:bg-red-950/30"
+            }`}
+          >
+            {connectionStatus === "connected" ? (
+              <Radio className="size-3" />
+            ) : connectionStatus === "connecting" ? (
+              <Loader2 className="size-3 animate-spin" />
+            ) : (
+              <WifiOff className="size-3" />
+            )}
+            {connectionStatus === "connected" ? "Connected" : connectionStatus === "connecting" ? "Connecting..." : "Disconnected"}
           </Badge>
         </div>
         <div className="flex items-center gap-1.5">
@@ -127,7 +145,7 @@ export function WatchView({
             size="icon"
             onClick={onToggleMute}
             title={isMuted ? "Unmute" : "Mute"}
-            className="size-8"
+            className="size-8 hover:bg-emerald-50 dark:hover:bg-emerald-950 transition-colors"
           >
             {isMuted ? (
               <VolumeX className="size-4" />
@@ -166,10 +184,10 @@ export function WatchView({
         </div>
       </div>
 
-      {/* Video Container */}
+      {/* Video Container with Vignette */}
       <div
         ref={containerRef}
-        className="flex flex-1 items-center justify-center overflow-hidden rounded-xl border bg-black shadow-inner"
+        className="vignette video-container flex flex-1 items-center justify-center overflow-hidden rounded-xl border shadow-xl shadow-black/20"
         style={{ minHeight: "55vh" }}
       >
         {error ? (
@@ -185,21 +203,29 @@ export function WatchView({
           </div>
         ) : connectionStatus !== "connected" ? (
           <div className="flex flex-col items-center gap-4 p-8 text-center">
-            <div className="relative flex size-16 items-center justify-center">
-              <span className="absolute inset-0 animate-ping rounded-full bg-emerald-500/20" />
-              <span className="absolute inset-3 animate-pulse rounded-full border-2 border-dashed border-emerald-400/30" />
-              <span className="absolute inset-6 animate-pulse rounded-full border-2 border-dashed border-emerald-400/20" style={{ animationDelay: "0.5s" }} />
-              <span className="absolute inset-9 animate-pulse rounded-full border-2 border-dashed border-emerald-400/10" style={{ animationDelay: "1s" }} />
-              <Wifi className="size-7 text-emerald-500" />
+            <div className="relative flex size-20 items-center justify-center">
+              <span className="absolute inset-0 animate-ping rounded-full bg-emerald-500/15" />
+              <span className="absolute inset-2 animate-pulse rounded-full border-2 border-dashed border-emerald-400/20" />
+              <span className="absolute inset-5 animate-pulse rounded-full border-2 border-dashed border-emerald-400/15" style={{ animationDelay: "0.5s" }} />
+              <span className="absolute inset-8 animate-pulse rounded-full border-2 border-dashed border-emerald-400/10" style={{ animationDelay: "1s" }} />
+              <div className="relative flex size-12 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950/60">
+                {waitingApproval ? (
+                  <ShieldAlertIcon />
+                ) : (
+                  <Wifi className="size-6 text-emerald-500" />
+                )}
+              </div>
             </div>
-            <p className="text-lg font-medium text-muted-foreground">
-              {waitingApproval ? "Waiting for host approval..." : "Connecting to stream..."}
-            </p>
-            <p className="text-sm text-muted-foreground/60">
-              {waitingApproval
-                ? "The host will need to approve your connection"
-                : "Please wait while the host sets up the connection"}
-            </p>
+            <div>
+              <p className="text-lg font-medium text-muted-foreground">
+                {waitingApproval ? "Waiting for host approval..." : "Connecting to stream..."}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground/60">
+                {waitingApproval
+                  ? "The host will need to approve your connection"
+                  : "Please wait while the host sets up the connection"}
+              </p>
+            </div>
             <Button variant="outline" onClick={onLeaveRoom} className="mt-2">
               Cancel
             </Button>
@@ -213,6 +239,34 @@ export function WatchView({
             className="max-h-full w-full object-contain"
           />
         )}
+
+        {/* Connection Lost Overlay */}
+        <AnimatePresence>
+          {connectionStatus === "disconnected" && !error && !waitingApproval && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="connection-lost-overlay absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 rounded-xl"
+            >
+              <div className="relative flex size-16 items-center justify-center">
+                <span className="absolute inset-0 rounded-full border-2 border-red-500/30" style={{ animation: "reconnect-pulse 2s ease-in-out infinite" }} />
+                <WifiOff className="size-8 text-red-400" />
+              </div>
+              <div className="text-center">
+                <p className="text-lg font-semibold text-white">Connection Lost</p>
+                <p className="mt-1 text-sm text-white/60">Attempting to reconnect...</p>
+              </div>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                className="mt-2"
+              >
+                <RefreshCw className="size-5 text-white/50" />
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Bottom Bar: Room Info + Reactions */}
@@ -249,17 +303,20 @@ export function WatchView({
                   transition={{ duration: 0.2 }}
                   className="absolute bottom-full right-0 mb-2 flex gap-1 rounded-xl border bg-background/95 p-2 shadow-lg backdrop-blur-sm"
                 >
-                  {REACTION_EMOJIS.map((emoji) => (
-                    <button
+                  {REACTION_EMOJIS.map((emoji, i) => (
+                    <motion.button
                       key={emoji}
+                      initial={{ opacity: 0, scale: 0.5 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: i * 0.03, type: "spring", stiffness: 500, damping: 20 }}
                       onClick={() => {
                         onSendReaction(emoji);
                         setShowReactions(false);
                       }}
-                      className="flex size-9 items-center justify-center rounded-lg text-lg transition-transform hover:scale-125 hover:bg-muted active:scale-95"
+                      className="reaction-btn flex size-9 items-center justify-center rounded-lg text-lg hover:bg-muted active:scale-95"
                     >
                       {emoji}
-                    </button>
+                    </motion.button>
                   ))}
                 </motion.div>
               )}
@@ -268,7 +325,7 @@ export function WatchView({
               variant="ghost"
               size="icon"
               onClick={() => setShowReactions(!showReactions)}
-              className="size-9"
+              className={`size-9 transition-colors ${showReactions ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : ""}`}
               title="Send reaction"
             >
               <SmilePlus className="size-4" />
@@ -277,5 +334,16 @@ export function WatchView({
         )}
       </div>
     </motion.div>
+  );
+}
+
+// Simple shield alert icon for waiting approval
+function ShieldAlertIcon() {
+  return (
+    <svg className="size-6 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      <line x1="12" y1="8" x2="12" y2="12" />
+      <line x1="12" y1="16" x2="12.01" y2="16" />
+    </svg>
   );
 }
