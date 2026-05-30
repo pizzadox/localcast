@@ -101,6 +101,16 @@ export function ensureSignalingServer(): void {
 
   const httpServer = createServer()
 
+  // Handle EADDRINUSE gracefully — port may already be in use from a
+  // previous module evaluation (Next.js hot reload resets the `started` flag).
+  httpServer.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE') {
+      console.log('[signaling] Port 3003 already in use — signaling server is already running')
+    } else {
+      console.error('[signaling] Server error:', err)
+    }
+  })
+
   const io = new Server(httpServer, {
     // Use DEFAULT path '/socket.io' to match client defaults
     cors: {
