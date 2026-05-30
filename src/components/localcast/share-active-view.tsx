@@ -55,6 +55,7 @@ import {
 } from "lucide-react";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { pageVariants, formatBytes, formatBitrate, formatElapsed } from "./types";
 import type { ViewerInfo, ViewerConnectionQuality, IceConnectionInfo } from "./types";
 
@@ -80,6 +81,8 @@ interface ShareActiveViewProps {
   setShowNetworkInfo: (v: boolean) => void;
   isPaused: boolean;
   onTogglePause: () => void;
+  connectionHealthScore: number;
+  exportSessionStats: () => string;
   onCopyRoomCode: () => void;
   onShowQrDialog: () => void;
   onApproveViewer: (viewerId: string) => void;
@@ -123,6 +126,8 @@ export function ShareActiveView({
   setShowNetworkInfo,
   isPaused,
   onTogglePause,
+  connectionHealthScore,
+  exportSessionStats,
   onCopyRoomCode,
   onShowQrDialog,
   onApproveViewer,
@@ -176,7 +181,8 @@ export function ShareActiveView({
                         initial={{ opacity: 0, scale: 0.5, y: 8 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         transition={{ delay: i * 0.08, type: "spring", stiffness: 400, damping: 20 }}
-                        className="room-code-char inline-flex size-10 sm:size-12 items-center justify-center rounded-lg bg-emerald-100/80 font-mono text-2xl sm:text-3xl font-bold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 cursor-default"
+                        className="room-code-char inline-flex size-10 sm:size-12 items-center justify-center rounded-lg bg-emerald-100/80 font-mono text-2xl sm:text-3xl font-bold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 cursor-default sequential-glow"
+                        style={{ animationDelay: `${i * 0.12}s` }}
                       >
                         {char}
                       </motion.span>
@@ -323,10 +329,10 @@ export function ShareActiveView({
               {viewers.length === 0 ? (
                 <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-12 text-center bg-muted/10">
                   <div className="relative mb-4 flex size-20 items-center justify-center">
-                    <span className="absolute inset-0 animate-ping rounded-full bg-emerald-400/10" />
-                    <span className="absolute inset-3 animate-pulse rounded-full border-2 border-dashed border-emerald-400/20" />
-                    <span className="absolute inset-6 animate-pulse rounded-full border-2 border-dashed border-emerald-400/15" style={{ animationDelay: "0.5s" }} />
-                    <Eye className="size-9 text-muted-foreground/25 empty-pulse-icon" />
+                    <span className="absolute inset-0 breathing rounded-full bg-emerald-400/10" />
+                    <span className="absolute inset-3 breathing rounded-full border-2 border-dashed border-emerald-400/20" style={{ animationDelay: "0.5s" }} />
+                    <span className="absolute inset-6 breathing rounded-full border-2 border-dashed border-emerald-400/15" style={{ animationDelay: "1s" }} />
+                    <Eye className="size-9 text-muted-foreground/25" />
                   </div>
                   <p className="text-sm font-medium text-muted-foreground/70">
                     Waiting for viewers...
@@ -344,12 +350,21 @@ export function ShareActiveView({
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: 8 }}
                       transition={{ delay: 0.05 + idx * 0.06, duration: 0.3 }}
-                      className={`group flex items-center justify-between rounded-xl border p-3 transition-all duration-200 hover:shadow-sm ${
+                      className={`group relative flex items-center justify-between rounded-xl border p-3 transition-all duration-200 hover:shadow-sm ${
                         viewer.approved
                           ? "border-l-4 border-l-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20"
                           : "border-l-4 border-l-yellow-500 hover:bg-yellow-50/50 dark:hover:bg-yellow-950/20"
                       }`}
                     >
+                      {/* Heartbeat line for connected viewers */}
+                      {viewer.approved && (
+                        <motion.div
+                          className="absolute bottom-0 left-4 right-4 h-[1px] bg-gradient-to-r from-transparent via-emerald-400/30 to-transparent"
+                          animate={{ opacity: [0, 0.6, 0], scaleX: [0.8, 1, 0.8] }}
+                          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                          style={{ originX: 0 }}
+                        />
+                      )}
                       <div className="flex items-center gap-2.5 min-w-0 flex-1">
                         <div className={`flex size-9 shrink-0 items-center justify-center rounded-full transition-all duration-200 ${
                           viewer.approved
@@ -385,6 +400,21 @@ export function ShareActiveView({
                               <span className="text-[10px] text-muted-foreground/60">
                                 {viewer.screenWidth}×{viewer.screenHeight}
                               </span>
+                            )}
+                            {viewer.approved && (
+                              <div className="ml-auto w-12">
+                                <div className="h-1 rounded-full bg-muted overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full transition-all duration-500 ${
+                                      (viewerQualities[viewer.id] === "good" || !viewerQualities[viewer.id])
+                                        ? "bg-emerald-500 w-full"
+                                        : viewerQualities[viewer.id] === "checking"
+                                          ? "bg-yellow-500 w-2/3 animate-pulse"
+                                          : "bg-red-500 w-1/4"
+                                    }`}
+                                  />
+                                </div>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -427,6 +457,8 @@ export function ShareActiveView({
                 </div>
               )}
             </CardContent>
+            {/* Animated gradient separator */}
+            <div className="gradient-message-separator" />
             <CardFooter className="flex-col gap-2">
               <div className="flex w-full gap-2">
                 <Button
@@ -559,7 +591,7 @@ export function ShareActiveView({
                         initial={{ scale: 1.3, color: "#059669" }}
                         animate={{ scale: 1, color: "inherit" }}
                         transition={{ duration: 0.3 }}
-                        className="stat-number text-lg font-bold tabular-nums tracking-tight"
+                        className="stat-number stat-sparkle text-lg font-bold tabular-nums tracking-tight"
                       >
                         {activePeerCount}
                       </motion.span>
@@ -665,6 +697,33 @@ export function ShareActiveView({
               Auto quality adaptation is active — bitrate adjusts based on connection quality.
             </div>
           )}
+
+          {/* Export Stats Button */}
+          <div className="mt-4 flex justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs"
+              onClick={() => {
+                const json = exportSessionStats();
+                const blob = new Blob([json], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                const now = new Date();
+                const dateStr = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
+                a.href = url;
+                a.download = `localcast-stats-${roomId}-${dateStr}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                toast.success("Stats exported!");
+              }}
+            >
+              <TrendingUp className="size-3" />
+              Export Stats
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </motion.div>

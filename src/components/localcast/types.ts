@@ -131,6 +131,9 @@ export const SHARE_MODE_CONFIG: Record<ShareMode, { label: string; icon: string;
   tab: { label: "Browser Tab", icon: "🌐", displaySurface: "browser", description: "Share a browser tab" },
 };
 
+/** Max viewer limit options (0 = unlimited). */
+export const MAX_VIEWER_OPTIONS: number[] = [0, 5, 10, 20, 50];
+
 /** Allowed reaction emojis (mirrors server-side whitelist). */
 export const REACTION_EMOJIS = [
   "\u{1F44D}",
@@ -254,7 +257,7 @@ function getAudioContext(): AudioContext {
 }
 
 /** Play a short oscillator-based notification sound. No audio files needed. */
-export function playNotificationSound(type: "join" | "chat" | "reaction" | "leave"): void {
+export function playNotificationSound(type: "join" | "chat" | "reaction" | "leave" | "connected" | "disconnected" | "approved" | "denied" | "paused" | "resumed"): void {
   try {
     const ctx = getAudioContext();
     const osc = ctx.createOscillator();
@@ -304,6 +307,73 @@ export function playNotificationSound(type: "join" | "chat" | "reaction" | "leav
         gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
         osc.start(ctx.currentTime);
         osc.stop(ctx.currentTime + 0.2);
+        break;
+      }
+      case "connected": {
+        // Rising chime C5 → E5 → G5
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+        osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1); // E5
+        osc.frequency.setValueAtTime(783.99, ctx.currentTime + 0.2); // G5
+        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.35);
+        break;
+      }
+      case "disconnected": {
+        // Falling tone G5 → E5 → C5
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(783.99, ctx.currentTime); // G5
+        osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1); // E5
+        osc.frequency.setValueAtTime(523.25, ctx.currentTime + 0.2); // C5
+        gain.gain.setValueAtTime(0.12, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.35);
+        break;
+      }
+      case "approved": {
+        // Quick ascending chime
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+        osc.frequency.setValueAtTime(783.99, ctx.currentTime + 0.08); // G5
+        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.2);
+        break;
+      }
+      case "denied": {
+        // Quick buzz sound
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(150, ctx.currentTime);
+        gain.gain.setValueAtTime(0.08, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.15);
+        break;
+      }
+      case "paused": {
+        // Low tone drop
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(440, ctx.currentTime); // A4
+        osc.frequency.linearRampToValueAtTime(220, ctx.currentTime + 0.2); // A3
+        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.25);
+        break;
+      }
+      case "resumed": {
+        // Rising return tone
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(220, ctx.currentTime); // A3
+        osc.frequency.linearRampToValueAtTime(440, ctx.currentTime + 0.2); // A4
+        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.25);
         break;
       }
     }

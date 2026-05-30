@@ -607,3 +607,49 @@ Stage Summary:
 - ~7,500+ lines across 12 source files (estimated after additions)
 - Total CSS utility classes: 80+ in globals.css
 - Total keyframe animations: 20+
+
+---
+Task ID: 7a
+Agent: frontend-styling-expert
+Task: Phase 7 deep visual polish for LocalCast
+
+Work Log:
+- Added 25+ new CSS utility classes to globals.css: `.wave-decoration`, `.shimmer-card`, `.toast-enter`, `.btn-3d`, `.stat-sparkle`, `.connection-line`, `.mobile-gesture-hint`, `.ambient-glow`, `.text-stroke`, `.tooltip-bounce`, `.frosted-glass`, `.breathing`, `.chat-border-glow`, `.progress-flow`, `.corner-decoration`, `.icon-spin-hover`, `.sequential-glow`, `.ring-pulse-enabled`, `.gradient-message-separator`, `.header-gradient-shift`, `.dialog-corner-deco`, and more
+- Added 15+ new keyframe animations: `shimmer-card-sweep`, `toast-slide-in`, `stat-sparkle`, `dash-flow`, `gesture-hint`, `ambient-pulse`, `tooltip-bounce-in`, `breathing`, `chat-glow-pulse`, `progress-flow-pulse`, `seq-glow`, `ring-pulse-enabled-anim`, `header-shift`, `dialog-corner-gradient`, `wave-undulate`
+- Enhanced `home-view.tsx`: Added animated SVG wave decoration at bottom of hero; Version 1.0 sparkle badge; pulsing emerald rings on step numbers; `progress-flow` connecting lines between steps 1→2→3; `icon-spin-hover` on step/feature icons; `corner-decoration` + `shimmer-card` on action cards
+- Enhanced `share-active-view.tsx`: Added `sequential-glow` with staggered delays on room code characters; `breathing` animation replacing `empty-pulse-icon` on empty state; heartbeat gradient line for connected viewers; `stat-sparkle` on peer count; `gradient-message-separator` between viewer list and controls
+- Enhanced `watch-view.tsx`: Added `frosted-glass` on control bar; `ambient-glow` behind video container; red ring tint on poor connection quality; `breathing` animation on quality badge when poor; spring animation on reaction bar with frosted glass; enhanced reaction panel styling
+- Enhanced `chat-panel.tsx`: Added `chat-border-glow` gradient pulsing border-left; `breathing` + floating animation on empty state icon; spring physics message entrance (y:12, scale:0.94); `btn-3d` press effect on send button; `gradient-message-separator` between messages and input
+- Enhanced `join-view.tsx`: Added `sequential-glow` on segment boxes when all 6 chars filled; `ring-pulse-enabled` on Join button when ready; dramatic approval animation with dual spinning rings, breathing effect, and gradient shadow pulse
+- Enhanced `page.tsx`: Added `header-gradient-shift` animation on header; `ambient-glow` on main content area; animated SVG wave decoration at top of footer; `dialog-corner-deco` animated gradient bar on QR dialog
+
+Stage Summary:
+- `bun run lint`: 0 errors, 0 warnings
+- All 7 files modified with premium micro-detail enhancements, 0 new files created
+- 25+ new CSS utility classes, 15+ new keyframe animations added to globals.css
+- All changes additive — no existing classes or structure removed
+- Emerald/teal palette maintained throughout, no blue/indigo colors used
+- All enhancements responsive with existing mobile-first breakpoints
+
+---
+Task ID: 7b
+Agent: fullstack-developer
+Task: Phase 7 new features for LocalCast
+
+Work Log:
+- Read all 7 component files + signaling server to understand existing architecture
+- Feature 1 (Max Viewer Limit): Added MAX_VIEWER_OPTIONS constant to types.ts; added maxViewers/setMaxViewers state to use-localcast.ts; modified startSharing() to include maxViewers in CREATE_ROOM payload; added "Max Viewers" segmented button selector in share-setup-view.tsx (between Quality Presets and Password Protection); modified signaling server CREATE_ROOM handler to store maxViewers from payload; modified JOIN_ROOM to emit ROOM_FULL instead of generic ERROR when room is full; added ROOM_FULL listener in use-localcast.ts for viewers; added maxViewers prop passing in page.tsx
+- Feature 2 (Session Stats Export): Added exportSessionStats() function to use-localcast.ts that creates JSON object with roomId, start/end time, total/approved viewers, peak/current bitrate, data transferred, chat messages, reactions, resolution, quality preset, share mode, maxViewers, session duration; added "Export Stats" button in share-active-view.tsx Session Stats dialog footer; uses URL.createObjectURL + anchor click for download with filename localcast-stats-{roomId}-{timestamp}.json
+- Feature 3 (Recording Timer Display): Added recording indicator in watch-view.tsx top control bar showing red blinking dot + "REC" text + elapsed time using formatElapsed(); added recording start/stop button in bottom bar of watch view; added isRecording, recordingDuration, onStartRecording, onStopRecording props to WatchView interface
+- Feature 4 (Connection Health Monitor): Added connectionHealthScore state (0-100) to use-localcast.ts computed every 2 seconds from quality (40% weight), latency (35% weight), and bitrate (25% weight); added thin horizontal health bar below control bar in watch-view.tsx with color transitions (green >80, yellow 50-80, red <50) and score label; added per-view inline health progress bar in share-active-view.tsx viewer list
+- Feature 5 (Sound Notification Improvements): Extended playNotificationSound() in types.ts to support 6 new types: "connected" (C5→E5→G5 chime), "disconnected" (G5→E5→C5 falling), "approved" (quick ascending chime), "denied" (buzz sound), "paused" (low tone drop A4→A3), "resumed" (rising tone A3→A4); wired sounds to VIEWER_APPROVED, VIEWER_DENIED, STREAM_PAUSED, STREAM_RESUMED events in use-localcast.ts
+
+Stage Summary:
+- `bun run lint`: 0 errors, 0 warnings
+- Dev server: Compiles successfully, 200 responses
+- All 5 features fully implemented across backend + frontend
+- Max Viewer Limit: configurable 0/5/10/20/50 with ROOM_FULL error handling
+- Session Stats Export: JSON download from Session Stats dialog
+- Recording Timer: blinking REC indicator + controls in watch view
+- Connection Health: score-based bar (0-100) in watch view + per-view bars
+- Sound Notifications: 10 total sound types with oscillator-based audio

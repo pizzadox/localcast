@@ -147,6 +147,16 @@ export interface UseLocalCastReturn {
   isPaused: boolean;
   togglePause: () => void;
 
+  // Max Viewers
+  maxViewers: number;
+  setMaxViewers: (v: number) => void;
+
+  // Connection Health
+  connectionHealthScore: number;
+
+  // Export Session Stats
+  exportSessionStats: () => string;
+
   // Refs
   videoRef: RefObject<HTMLVideoElement | null>;
   previewVideoRef: RefObject<HTMLVideoElement | null>;
@@ -184,6 +194,7 @@ export function useLocalCast(): UseLocalCastReturn {
   const [requireApproval, setRequireApproval] = useState(false);
   const [qualityPreset, setQualityPreset] = useState<QualityPreset>("medium");
   const [shareMode, setShareMode] = useState<ShareMode>("screen");
+  const [maxViewers, setMaxViewers] = useState(0); // 0 = unlimited
 
   // ── Room Password ──
   const [roomPassword, setRoomPassword] = useState("");
@@ -296,6 +307,10 @@ export function useLocalCast(): UseLocalCastReturn {
   // ── Pause/Resume ──
   const [isPaused, setIsPaused] = useState(false);
 
+  // ── Connection Health ──
+  const [connectionHealthScore, setConnectionHealthScore] = useState(100);
+  const healthIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   // ── Troubleshooting ──
   const troubleshootingToastShownRef = useRef(false);
   const poorQualityViewerSinceRef = useRef<number>(0);
@@ -327,6 +342,9 @@ export function useLocalCast(): UseLocalCastReturn {
 
   // ── Stats ──
   const statsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── Session start time for export ──
+  const shareStartExportRef = useRef<number>(0);
   const prevBytesSentRef = useRef<Map<string, number>>(new Map());
   const totalBytesSentRef = useRef(0);
 
@@ -570,6 +588,7 @@ export function useLocalCast(): UseLocalCastReturn {
       "STREAM_RESUMED",
       "VIEWER_COUNT_UPDATE",
       "ROOM_SETTINGS_UPDATED",
+      "ROOM_FULL",
     ];
     for (const e of events) {
       socket.removeAllListeners(e);
@@ -691,6 +710,13 @@ export function useLocalCast(): UseLocalCastReturn {
     setIceConnectionInfo({ localCandidate: "", remoteCandidate: "", transportProtocol: "", iceConnectionState: "" });
     setShowNetworkInfo(false);
     setIsPaused(false);
+    setMaxViewers(0);
+    setConnectionHealthScore(100);
+    shareStartExportRef.current = 0;
+    if (healthIntervalRef.current) {
+      clearInterval(healthIntervalRef.current);
+      healthIntervalRef.current = null;
+    }
   }, [removeAllListeners]);
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -1019,10 +1045,11 @@ export function useLocalCast(): UseLocalCastReturn {
 
       socket.on("connect", () => {
         // Create room
-        socket.emit("CREATE_ROOM", { requireApproval, password: roomPassword });
+        socket.emit("CREATE_ROOM", { requireApproval, password: roomPassword, maxViewers });
 
         socket.on("ROOM_CREATED", (data: { roomId: string; roomInfo?: { hostId: string } }) => {
           setRoomId(data.roomId);
+          shareStartExportRef.current = Date.now();
           hostIdRef.current = data.roomInfo?.hostId || socket.id;
           setIsSharing(true);
           setConnectionStatus("connected");
@@ -1129,7 +1156,7 @@ export function useLocalCast(): UseLocalCastReturn {
       setConnectionStatus("disconnected");
       setError("Screen sharing permission denied or unavailable.");
     }
-  }, [qualityPreset, shareMode, requireApproval, roomPassword, getOrCreateSocket, removeAllListeners, createBroadcasterPeer, handleBroadcasterSignal]);
+  }, [qualityPreset, shareMode, requireApproval, roomPassword, maxViewers, getOrCreateSocket, removeAllListeners, createBroadcasterPeer, handleBroadcasterSignal]);
 
   const stopSharing = useCallback(() => {
     cleanupAll();
@@ -1251,9 +1278,11 @@ export function useLocalCast(): UseLocalCastReturn {
           setConnectionStatus("connected");
           setCurrentView("watching");
           toast.success("Approved by host!");
+          if (soundEnabled) playNotificationSound("approved");
         });
 
         socket.on("VIEWER_DENIED", () => {
+          if (soundEnabled) playNotificationSound("denied");
           toast.error("You were denied by the host");
           setError("The host denied your request to join.");
           cleanupAll();
@@ -1277,6 +1306,12 @@ export function useLocalCast(): UseLocalCastReturn {
           setConnectionStatus("disconnected");
         });
 
+        socket.on("ROOM_FULL", () => {
+          toast.error("Room is full. No more viewers can join.");
+          setError("This room has reached its maximum viewer limit.");
+          setConnectionStatus("disconnected");
+        });
+
         socket.on("ROOM_PASSWORD_REQUIRED", () => {
           setRoomRequiresPassword(true);
           toast.error("This room requires a password");
@@ -1286,10 +1321,12 @@ export function useLocalCast(): UseLocalCastReturn {
 
         socket.on("STREAM_PAUSED", () => {
           toast.info("Host paused the stream");
+          if (soundEnabled) playNotificationSound("paused");
         });
 
         socket.on("STREAM_RESUMED", () => {
           toast.success("Stream resumed");
+          if (soundEnabled) playNotificationSound("resumed");
         });
 
         socket.on("KICKED", () => {
@@ -1682,6 +1719,73 @@ export function useLocalCast(): UseLocalCastReturn {
     }
   }, [currentView, connectionQuality]);
 
+  // ── Connection Health Monitor ──
+  useEffect(() => {
+    if (connectionStatus !== "connected") {
+      if (healthIntervalRef.current) {
+        clearInterval(healthIntervalRef.current);
+        healthIntervalRef.current = null;
+      }
+      return;
+    }
+
+    healthIntervalRef.current = setInterval(() => {
+ // Quality score
+      let qualityScore = 100;
+      if (connectionQuality === "fair") qualityScore = 60;
+      else if (connectionQuality === "poor") qualityScore = 30;
+
+      // Latency score
+      let latencyScore = 100;
+      const lat = latency;
+      if (lat <= 0) latencyScore = 80;
+      else if (lat <= 50) latencyScore = 80;
+      else if (lat <= 100) latencyScore = 40;
+      else latencyScore = 10;
+
+      // Bitrate score (higher = better)
+      let bitrateScore = 50;
+      if (currentBitrate > 0) {
+        if (currentBitrate >= 2_000_000) bitrateScore = 100;
+        else if (currentBitrate >= 1_000_000) bitrateScore = 80;
+        else if (currentBitrate >= 500_000) bitrateScore = 60;
+        else bitrateScore = 30;
+      }
+
+      const score = Math.round((qualityScore * 0.4) + (latencyScore * 0.35) + (bitrateScore * 0.25));
+      setConnectionHealthScore(score);
+    }, 2000);
+
+    return () => {
+      if (healthIntervalRef.current) {
+        clearInterval(healthIntervalRef.current);
+        healthIntervalRef.current = null;
+      }
+    };
+  }, [connectionStatus, connectionQuality, latency, currentBitrate]);
+
+  // ── Export Session Stats ──
+  const exportSessionStats = useCallback((): string => {
+    const stats = {
+      roomId,
+      startTime: shareStartExportRef.current ? new Date(shareStartExportRef.current).toISOString() : null,
+      endTime: new Date().toISOString(),
+      totalViewers: viewers.length,
+      approvedViewers: viewers.filter(v => v.approved).length,
+      peakBitrate,
+      currentBitrate,
+      totalDataTransferred: estimatedDataTransferred,
+      totalChatMessages,
+      totalReactions,
+      streamResolution,
+      qualityPreset,
+      shareMode,
+      maxViewers,
+      sessionDurationMs: elapsedTime,
+    };
+    return JSON.stringify(stats, null, 2);
+  }, [roomId, viewers, peakBitrate, currentBitrate, estimatedDataTransferred, totalChatMessages, totalReactions, streamResolution, qualityPreset, shareMode, maxViewers, elapsedTime]);
+
   // ═══════════════════════════════════════════════════════════════════════
   // RETURN
   // ═══════════════════════════════════════════════════════════════════════
@@ -1787,6 +1891,16 @@ export function useLocalCast(): UseLocalCastReturn {
     // Pause/Resume
     isPaused,
     togglePause,
+
+    // Max Viewers
+    maxViewers,
+    setMaxViewers,
+
+    // Connection Health
+    connectionHealthScore,
+
+    // Export Session Stats
+    exportSessionStats,
 
     // Refs
     videoRef,

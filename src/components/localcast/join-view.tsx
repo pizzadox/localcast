@@ -189,14 +189,24 @@ export function JoinView({
                 exit={{ opacity: 0, scale: 0.95 }}
                 className="flex flex-col items-center gap-4 rounded-xl border border-yellow-200/80 bg-yellow-50/80 p-6 text-center dark:border-yellow-800/60 dark:bg-yellow-950/30"
               >
-                {/* Pulsing approval animation */}
+                {/* Dramatic pulsing approval animation */}
                 <div className="relative flex size-16 items-center justify-center">
                   <span className="absolute inset-0 rounded-full bg-yellow-400/20 animate-ping" />
-                  <span className="absolute inset-2 rounded-full bg-yellow-400/10 animate-pulse" />
-                  <span className="absolute inset-4 rounded-full border-2 border-dashed border-yellow-400/30 animate-spin" style={{ animationDuration: "4s" }} />
-                  <div className="relative flex size-10 items-center justify-center rounded-full bg-yellow-100 dark:bg-yellow-900/60">
+                  <span className="absolute inset-2 rounded-full bg-yellow-400/10 breathing" />
+                  <span className="absolute inset-4 rounded-full border-2 border-dashed border-yellow-400/30 animate-spin" style={{ animationDuration: "3s" }} />
+                  <motion.span
+                    className="absolute inset-6 rounded-full border border-dashed border-yellow-300/20"
+                    animate={{ rotate: -360 }}
+                    transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
+                  />
+                  <motion.div
+                    className="relative flex size-10 items-center justify-center rounded-full"
+                    style={{ background: "linear-gradient(135deg, rgba(234, 179, 8, 0.15), rgba(245, 158, 11, 0.1))" }}
+                    animate={{ boxShadow: ["0 0 0 0 rgba(234,179,8,0.2)", "0 0 16px 4px rgba(234,179,8,0.1)", "0 0 0 0 rgba(234,179,8,0.2)"] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                  >
                     <ShieldAlert className="size-5 text-yellow-600 dark:text-yellow-400" />
-                  </div>
+                  </motion.div>
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-yellow-700 dark:text-yellow-300">
@@ -236,7 +246,7 @@ export function JoinView({
                       onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => handleKeyDown(i, e)}
                       onPaste={handlePaste}
                       onFocus={() => handleFocus(i)}
-                      className={`seg-char ${viewerInput[i] ? "filled" : ""} ${i === viewerInput.length ? "active" : ""}`}
+                      className={`seg-char ${viewerInput[i] ? "filled" : ""} ${i === viewerInput.length ? "active" : ""} ${viewerInput.length === 6 && viewerInput[i] ? "sequential-glow" : ""}`}
                       aria-label={`Character ${i + 1} of room code`}
                     />
                   ))}
@@ -321,7 +331,7 @@ export function JoinView({
             <Button
               onClick={onJoinRoom}
               disabled={viewerInput.length !== 6 || waitingApproval}
-              className={`btn-disabled-enhanced relative w-full overflow-hidden bg-teal-600 text-white shadow-lg shadow-teal-500/25 hover:bg-teal-700 hover:shadow-xl hover:shadow-teal-500/30 transition-all dark:bg-teal-600 dark:hover:bg-teal-700 h-12 text-base font-semibold disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed ${viewerInput.length === 6 && !waitingApproval ? "animate-border-glow" : ""}`}
+              className={`btn-disabled-enhanced relative w-full overflow-hidden bg-teal-600 text-white shadow-lg shadow-teal-500/25 hover:bg-teal-700 hover:shadow-xl hover:shadow-teal-500/30 transition-all dark:bg-teal-600 dark:hover:bg-teal-700 h-12 text-base font-semibold disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed ${viewerInput.length === 6 && !waitingApproval ? "animate-border-glow ring-pulse-enabled" : ""}`}
               size="lg"
             >
               <span className="absolute inset-0 overflow-hidden rounded-md">

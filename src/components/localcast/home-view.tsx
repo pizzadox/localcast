@@ -165,18 +165,44 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
               No sign-up, no cloud, no delay. Just a room code away.
             </motion.p>
 
+            {/* "Version 1.0" badge with sparkle */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.45, duration: 0.4 }}
+              className="mt-5 inline-flex items-center gap-1.5 rounded-full border border-emerald-200/60 bg-emerald-50/80 px-3 py-1 dark:border-emerald-800/40 dark:bg-emerald-950/40"
+            >
+              <Sparkles className="size-3 text-emerald-600 dark:text-emerald-400" />
+              <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                Version 1.0
+              </span>
+            </motion.div>
+
             {/* "Made for local networks" badge */}
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.5, duration: 0.4 }}
-              className="mt-6 inline-flex items-center gap-1.5 rounded-full border border-emerald-200/60 bg-emerald-50/80 px-3 py-1 dark:border-emerald-800/40 dark:bg-emerald-950/40"
+              transition={{ delay: 0.55, duration: 0.4 }}
+              className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-emerald-200/60 bg-emerald-50/80 px-3 py-1 dark:border-emerald-800/40 dark:bg-emerald-950/40"
             >
               <Globe className="size-3 text-emerald-600 dark:text-emerald-400" />
               <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
                 Made for local networks
               </span>
             </motion.div>
+            {/* Animated SVG Wave Decoration at bottom of hero */}
+            <div className="wave-decoration">
+              <svg viewBox="0 0 240 40" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M0,20 Q30,10 60,20 T120,20 T180,20 T240,20 L240,40 L0,40 Z"
+                  fill="rgba(5, 150, 105, 0.06)"
+                />
+                <path
+                  d="M0,24 Q30,14 60,24 T120,24 T180,24 T240,24 L240,40 L0,40 Z"
+                  fill="rgba(13, 148, 136, 0.04)"
+                />
+              </svg>
+            </div>
           </motion.div>
         </div>
       </div>
@@ -202,14 +228,17 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 + i * 0.1, duration: 0.4 }}
-              className="group relative flex flex-col items-center gap-3 rounded-2xl border bg-card p-5 transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/5 hover:border-emerald-300 dark:hover:border-emerald-700 hover-glow-emerald"
+              className={`group relative flex flex-col items-center gap-3 rounded-2xl border bg-card p-5 transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/5 hover:border-emerald-300 dark:hover:border-emerald-700 hover-glow-emerald ${i < 2 ? "progress-flow" : ""}`}
             >
-              {/* Step number */}
-              <div className="absolute -top-3 -left-3 flex size-6 items-center justify-center rounded-full bg-emerald-600 text-[11px] font-bold text-white shadow-md shadow-emerald-500/30">
-                {i + 1}
+              {/* Step number with pulsing ring */}
+              <div className="absolute -top-3 -left-3">
+                <span className="absolute inset-0 rounded-full bg-emerald-500/20 animate-ping" />
+                <div className="relative flex size-6 items-center justify-center rounded-full bg-emerald-600 text-[11px] font-bold text-white shadow-md shadow-emerald-500/30">
+                  {i + 1}
+                </div>
               </div>
-              <div className={`flex size-12 items-center justify-center rounded-2xl ${step.color} shadow-sm transition-all duration-300 group-hover:scale-110 group-hover:shadow-md icon-float-hover`}>
-                <step.icon className="size-6" />
+              <div className={`flex size-12 items-center justify-center rounded-2xl ${step.color} shadow-sm transition-all duration-300 group-hover:scale-110 group-hover:shadow-md`}>
+                <step.icon className="size-6 icon-spin-hover" />
               </div>
               <h3 className="text-sm font-bold">{step.title}</h3>
               <p className="text-center text-xs leading-relaxed text-muted-foreground">
@@ -229,7 +258,7 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
       >
         {/* Share Screen Card */}
         <motion.div variants={fadeInUp}>
-          <Card className="glass-card group relative overflow-hidden cursor-pointer border-2 transition-transform duration-300 hover:scale-[1.01]">
+          <Card className="glass-card corner-decoration shimmer-card group relative overflow-hidden cursor-pointer border-2 transition-transform duration-300 hover:scale-[1.01]">
             {/* Top accent gradient */}
             <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500 opacity-80 transition-opacity group-hover:opacity-100" />
             <CardHeader className="pt-6">
@@ -271,7 +300,7 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
 
         {/* View Screen Card */}
         <motion.div variants={fadeInUp}>
-          <Card className="glass-card group relative overflow-hidden cursor-pointer border-2 transition-transform duration-300 hover:scale-[1.01]">
+          <Card className="glass-card corner-decoration shimmer-card group relative overflow-hidden cursor-pointer border-2 transition-transform duration-300 hover:scale-[1.01]">
             <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-teal-500 via-cyan-400 to-teal-500 opacity-80 transition-opacity group-hover:opacity-100" />
             <CardHeader className="pt-6">
               <div className="mb-3 flex size-14 items-center justify-center rounded-2xl bg-teal-100 text-teal-600 transition-all duration-300 group-hover:bg-teal-200 group-hover:shadow-lg group-hover:shadow-teal-500/20 dark:bg-teal-950 dark:text-teal-400 dark:group-hover:bg-teal-900">
@@ -332,7 +361,7 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
               transition={{ delay: 0.6 + i * 0.05, duration: 0.3 }}
               className="group flex items-start gap-2.5 rounded-xl border bg-muted/20 p-3.5 transition-all duration-200 hover:bg-muted/40 hover:shadow-sm hover:border-emerald-200/50 dark:hover:border-emerald-800/30"
             >
-              <feat.icon className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400 icon-float-hover" />
+              <feat.icon className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400 icon-spin-hover" />
               <div>
                 <p className="text-xs font-semibold">{feat.label}</p>
                 <p className="text-[11px] leading-tight text-muted-foreground/60">{feat.desc}</p>

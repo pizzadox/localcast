@@ -160,7 +160,7 @@ io.on('connection', (socket: Socket) => {
   // -----------------------------------------------------------------------
   // 1. CREATE_ROOM
   // -----------------------------------------------------------------------
-  socket.on('CREATE_ROOM', (payload?: { requireApproval?: boolean; password?: string }, callback?: (response: unknown) => void) => {
+  socket.on('CREATE_ROOM', (payload?: { requireApproval?: boolean; password?: string; maxViewers?: number }, callback?: (response: unknown) => void) => {
     try {
       // Prevent double-creation
       if (socketToRoom.has(socket.id)) {
@@ -188,7 +188,7 @@ io.on('connection', (socket: Socket) => {
         viewers: new Map(),
         createdAt: Date.now(),
         settings: {
-          maxViewers: 0, // 0 = unlimited
+          maxViewers: payload?.maxViewers ?? 0, // 0 = unlimited
           requireApproval: payload?.requireApproval ?? false,
           password: payload?.password || '',
         },
@@ -266,9 +266,10 @@ io.on('connection', (socket: Socket) => {
           room.settings.maxViewers > 0 &&
           room.viewers.size >= room.settings.maxViewers
         ) {
-          socket.emit('ERROR', {
+          socket.emit('ROOM_FULL', {
             message: 'Room is full.',
-            code: 'ROOM_FULL',
+            maxViewers: room.settings.maxViewers,
+            currentViewers: room.viewers.size,
           })
           callback?.({ success: false, error: 'Room is full' })
           return

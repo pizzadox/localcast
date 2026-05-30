@@ -187,6 +187,13 @@ export default function Home() {
     // Pause/Resume
     isPaused,
     togglePause,
+    // Max Viewers
+    maxViewers,
+    setMaxViewers,
+    // Connection Health
+    connectionHealthScore,
+    // Export Session Stats
+    exportSessionStats,
     // Refs
     videoRef,
     previewVideoRef,
@@ -232,7 +239,13 @@ export default function Home() {
   return (
     <div className="page-dot-grid min-h-screen flex flex-col bg-background">
       {/* ─── Header ─────────────────────────────────────────────────────── */}
-      <header className="header-border-glow sticky top-0 z-40 w-full border-b border-b-emerald-100/50 dark:border-b-emerald-900/30 bg-background/80 backdrop-blur-md">
+      <header className="header-border-glow sticky top-0 z-40 w-full border-b border-b-emerald-100/50 dark:border-b-emerald-900/30 bg-background/80 backdrop-blur-md header-gradient-shift"
+        style={{
+          background: "linear-gradient(135deg, rgba(255,255,255,0.95), rgba(255,255,255,0.8), rgba(240,253,245,0.85))",
+          backgroundSize: "200% 100%",
+          animation: "header-shift 8s ease-in-out infinite",
+        }}
+      >
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
           <button
             onClick={() => {
@@ -358,7 +371,7 @@ export default function Home() {
       </header>
 
       {/* ─── Main Content ───────────────────────────────────────────────── */}
-      <main className="flex-1 flex items-center justify-center">
+      <main className="ambient-glow flex-1 flex items-center justify-center">
         <AnimatePresence mode="wait" initial={false}>
           {currentView === "home" && (
             <HomeView
@@ -383,6 +396,8 @@ export default function Home() {
               onShareModeChange={setShareMode}
               roomPassword={roomPassword}
               onRoomPasswordChange={setRoomPassword}
+              maxViewers={maxViewers}
+              onMaxViewersChange={setMaxViewers}
               error={error}
               onBack={() => {
                 setCurrentView("home");
@@ -414,6 +429,7 @@ export default function Home() {
               showNetworkInfo={showNetworkInfo}
               setShowNetworkInfo={setShowNetworkInfo}
               isPaused={isPaused}
+              connectionHealthScore={connectionHealthScore}
               onTogglePause={togglePause}
               onCopyRoomCode={copyRoomCode}
               onShowQrDialog={() => setShowQrDialog(true)}
@@ -464,6 +480,7 @@ export default function Home() {
               isPaused={isPaused}
               isRecording={isRecording}
               recordingDuration={recordingDuration}
+              connectionHealthScore={connectionHealthScore}
               onStartRecording={startRecording}
               onStopRecording={stopRecording}
               onToggleMute={() => {
@@ -505,8 +522,21 @@ export default function Home() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.5, duration: 0.4 }}
-        className="mt-auto border-t border-t-emerald-100/30 dark:border-t-emerald-900/20"
+        className="relative mt-auto border-t border-t-emerald-100/30 dark:border-t-emerald-900/20"
       >
+        {/* Animated wave decoration at top of footer */}
+        <div className="absolute -top-[19px] left-0 right-0 overflow-hidden pointer-events-none">
+          <svg viewBox="0 0 240 20" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-5">
+            <path
+              d="M0,12 Q30,4 60,12 T120,12 T180,12 T240,12 L240,20 L0,20 Z"
+              fill="rgba(5, 150, 105, 0.04)"
+            />
+            <path
+              d="M0,14 Q30,8 60,14 T120,14 T180,14 T240,14 L240,20 L0,20 Z"
+              fill="rgba(13, 148, 136, 0.03)"
+            />
+          </svg>
+        </div>
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 text-xs text-muted-foreground">
           <div className="flex items-center gap-1.5">
             <Monitor className="size-3" />
@@ -536,7 +566,7 @@ export default function Home() {
 
       {/* ─── QR Code Dialog ────────────────────────────────────────────── */}
       <Dialog open={showQrDialog} onOpenChange={setShowQrDialog}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-sm dialog-corner-deco rounded-xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <QrCode className="size-5 text-emerald-600 dark:text-emerald-400" />

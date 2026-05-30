@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 
 import { pageVariants, REACTION_EMOJIS } from "./types";
+import { formatElapsed } from "./types";
 
 interface WatchViewProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -39,6 +40,9 @@ interface WatchViewProps {
   pipSupported: boolean;
   waitingApproval: boolean;
   isPaused: boolean;
+  isRecording: boolean;
+  recordingDuration: number;
+  connectionHealthScore: number;
   error: string | null;
   latency: number;
   onToggleMute: () => void;
@@ -46,6 +50,8 @@ interface WatchViewProps {
   onToggleFullscreen: () => void;
   onLeaveRoom: () => void;
   onSendReaction: (emoji: string) => void;
+  onStartRecording: () => void;
+  onStopRecording: () => void;
 }
 
 export function WatchView({
@@ -59,6 +65,9 @@ export function WatchView({
   pipSupported,
   waitingApproval,
   isPaused,
+  isRecording,
+  recordingDuration,
+  connectionHealthScore,
   error,
   latency,
   onToggleMute,
@@ -66,12 +75,15 @@ export function WatchView({
   onToggleFullscreen,
   onLeaveRoom,
   onSendReaction,
+  onStartRecording,
+  onStopRecording,
 }: WatchViewProps) {
   const [showReactions, setShowReactions] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const controlsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const qualityClass = connectionQuality === "good" ? "quality-good" : connectionQuality === "fair" ? "quality-fair" : "quality-poor";
   const latencyClass = latency < 50 ? "latency-good" : latency < 100 ? "latency-fair" : "latency-poor";
+  const healthColor = connectionHealthScore > 80 ? "bg-emerald-500" : connectionHealthScore >= 50 ? "bg-yellow-500" : "bg-red-500";
 
   const handleMouseMove = useCallback(() => {
     setControlsVisible(true);
@@ -101,7 +113,7 @@ export function WatchView({
     >
       {/* Top Controls Bar — fades on mouse idle */}
       <div
-        className="control-bar mb-3 flex items-center justify-between rounded-xl p-2 control-bar-fade"
+        className="frosted-glass control-bar-fade mb-3 flex items-center justify-between rounded-xl p-2 control-bar"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         style={{ opacity: controlsVisible ? 1 : 0 }}
@@ -146,7 +158,7 @@ export function WatchView({
                 : connectionQuality === "fair"
                   ? "quality-badge-fair"
                   : "quality-badge-poor"
-            }`}
+            } ${connectionQuality === "poor" ? "breathing" : ""}`}
           >
             {connectionQuality === "poor" ? (
               <WifiOff className="size-3" />
@@ -165,6 +177,20 @@ export function WatchView({
           )}
 
           <div className="mx-1 h-4 w-px bg-border/50" />
+
+          {/* Recording indicator */}
+          {isRecording && (
+            <Badge
+              variant="outline"
+              className="gap-1.5 border-red-300 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/50 dark:text-red-400"
+            >
+              <span className="relative flex size-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+                <span className="relative inline-flex size-2.5 rounded-full bg-red-500" />
+              </span>
+              <span className="font-mono text-[10px] tabular-nums">REC {formatElapsed(recordingDuration)}</span>
+            </Badge>
+          )}
 
           {/* Volume */}
           <Button
@@ -211,8 +237,22 @@ export function WatchView({
         </div>
       </div>
 
-      {/* Video Container with Vignette + Gradient Border */}
-      <div className={`vignette video-bottom-gradient video-container flex flex-1 items-center justify-center overflow-hidden rounded-xl border shadow-xl shadow-black/20 transition-all duration-500 ${connectionStatus === "connected" ? "gradient-border-subtle" : ""}`}
+      {/* Connection Health Bar */}
+      {connectionStatus === "connected" && (
+        <div className="mb-1 flex items-center gap-2 px-1">
+          <span className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">Connection Health</span>
+          <div className="h-1 flex-1 rounded-full bg-muted overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-1000 ${healthColor}`}
+              style={{ width: `${connectionHealthScore}%` }}
+            />
+          </div>
+          <span className="text-[10px] font-mono tabular-nums text-muted-foreground">{connectionHealthScore}</span>
+        </div>
+      )}
+
+      {/* Video Container with Vignette + Gradient Border + Ambient Glow */}
+      <div className={`vignette video-bottom-gradient video-container ambient-glow flex flex-1 items-center justify-center overflow-hidden rounded-xl border shadow-xl shadow-black/20 transition-all duration-500 ${connectionStatus === "connected" ? "gradient-border-subtle" : ""} ${connectionQuality === "poor" && connectionStatus === "connected" ? "ring-1 ring-red-500/30" : ""}`}
         ref={(el) => {
           // Attach mousemove listener to video container for controls auto-hide
           if (el && !containerRef.current) {
@@ -354,8 +394,8 @@ export function WatchView({
                   initial={{ opacity: 0, scale: 0.8, y: 8 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.8, y: 8 }}
-                  transition={{ duration: 0.2 }}
-                  className="absolute bottom-full right-0 mb-2 flex gap-1 rounded-2xl border border-emerald-200/40 bg-background/95 p-2 shadow-xl backdrop-blur-md dark:border-emerald-800/30"
+                  transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                  className="absolute bottom-full right-0 mb-2 flex gap-1 rounded-2xl border border-emerald-200/40 bg-background/95 p-2 shadow-xl backdrop-blur-md dark:border-emerald-800/30 frosted-glass"
                 >
                   {REACTION_EMOJIS.map((emoji, i) => (
                     <motion.button
@@ -385,6 +425,19 @@ export function WatchView({
               <SmilePlus className="size-4" />
             </Button>
           </div>
+        )}
+
+        {/* Recording Controls */}
+        {connectionStatus === "connected" && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={isRecording ? onStopRecording : onStartRecording}
+            className={`size-9 rounded-xl transition-all duration-200 ${isRecording ? "bg-red-100 text-red-700 shadow-sm shadow-red-500/20 hover:bg-red-200 dark:bg-red-950 dark:text-red-400" : "hover:bg-muted"}`}
+            title={isRecording ? "Stop recording" : "Start recording"}
+          >
+            <Radio className="size-4" />
+          </Button>
         )}
       </div>
     </motion.div>

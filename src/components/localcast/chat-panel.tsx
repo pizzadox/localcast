@@ -71,7 +71,7 @@ export function ChatPanel({
         animate={{ x: 0 }}
         exit={{ x: "100%" }}
         transition={{ type: "spring", damping: 30, stiffness: 300 }}
-        className="fixed right-0 top-14 bottom-0 z-50 flex w-full max-w-sm flex-col border-l bg-background/95 backdrop-blur-xl shadow-2xl shadow-black/10 dark:bg-background/95"
+        className="fixed right-0 top-14 bottom-0 z-50 flex w-full max-w-sm flex-col border-l bg-background/95 backdrop-blur-xl shadow-2xl shadow-black/10 dark:bg-background/95 chat-border-glow"
         style={{ boxShadow: "-4px 0 24px rgba(0,0,0,0.08)" }}
       >
         {/* Header with gradient */}
@@ -108,11 +108,11 @@ export function ChatPanel({
           {messages.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
               <div className="relative">
-                <div className="flex size-16 items-center justify-center rounded-2xl bg-muted/30 empty-pulse-icon">
+                <div className="flex size-16 items-center justify-center rounded-2xl bg-muted/30 breathing">
                   <MessageCircle className="size-7 text-muted-foreground/30" />
                 </div>
                 <motion.div
-                  animate={{ opacity: [0.2, 0.5, 0.2], scale: [0.95, 1, 0.95] }}
+                  animate={{ opacity: [0.2, 0.5, 0.2], scale: [0.95, 1, 0.95], y: [0, -6, 0] }}
                   transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
                   className="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950/50"
                 >
@@ -133,9 +133,9 @@ export function ChatPanel({
                 return (
                   <motion.div
                     key={msg.id || `${msg.senderId}-${msg.timestamp}-${idx}`}
-                    initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                    initial={{ opacity: 0, y: 12, scale: 0.94 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={{ duration: 0.25, ease: "easeOut" }}
+                    transition={{ duration: 0.3, type: "spring", stiffness: 400, damping: 25 }}
                     className={`flex flex-col ${isOwn ? "items-end" : "items-start"}`}
                   >
                     {/* Show sender name only if different from previous */}
@@ -189,6 +189,9 @@ export function ChatPanel({
           )}
         </div>
 
+        {/* Gradient separator between messages and input */}
+        <div className="gradient-message-separator" />
+
         {/* Input */}
         <div className="border-t bg-muted/10 p-3">
           <div className="focus-ring-animated flex items-center gap-2 rounded-xl border border-transparent">
@@ -208,7 +211,7 @@ export function ChatPanel({
                 size="icon"
                 onClick={onSend}
                 disabled={!input.trim()}
-                className="size-10 shrink-0 rounded-xl bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700 shadow-md shadow-emerald-500/20 transition-all disabled:opacity-40 disabled:shadow-none"
+                className="size-10 shrink-0 rounded-xl bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700 shadow-md shadow-emerald-500/20 transition-all disabled:opacity-40 disabled:shadow-none btn-3d"
               >
                 <Send className="size-4" />
               </Button>

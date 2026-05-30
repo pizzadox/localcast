@@ -31,9 +31,10 @@ import {
   Lock,
   Eye,
   EyeOff,
+  Users,
 } from "lucide-react";
 
-import { pageVariants, QUALITY_PRESETS, SHARE_MODE_CONFIG } from "./types";
+import { pageVariants, QUALITY_PRESETS, SHARE_MODE_CONFIG, MAX_VIEWER_OPTIONS } from "./types";
 import type { QualityPreset, ShareMode } from "./types";
 import { useState } from "react";
 
@@ -47,6 +48,8 @@ interface ShareSetupViewProps {
   onShareModeChange: (v: ShareMode) => void;
   roomPassword: string;
   onRoomPasswordChange: (v: string) => void;
+  maxViewers: number;
+  onMaxViewersChange: (v: number) => void;
   error: string | null;
   onBack: () => void;
 }
@@ -85,6 +88,8 @@ export function ShareSetupView({
   onShareModeChange,
   roomPassword,
   onRoomPasswordChange,
+  maxViewers,
+  onMaxViewersChange,
   error,
   onBack,
 }: ShareSetupViewProps) {
@@ -252,6 +257,37 @@ export function ShareSetupView({
           </div>
 
           {/* Section divider with fade-out edges */}
+          <div className="section-divider" />
+
+          {/* Max Viewers */}
+          <div className="rounded-xl border bg-muted/20 p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Users className="size-4 text-emerald-600 dark:text-emerald-400" />
+              <span className="text-sm font-semibold">Max Viewers</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {MAX_VIEWER_OPTIONS.map((opt) => {
+                const label = opt === 0 ? "Unlimited" : String(opt);
+                const isSelected = maxViewers === opt;
+                return (
+                  <motion.button
+                    key={opt}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => onMaxViewersChange(opt)}
+                    className={`rounded-lg border-2 px-3 py-1.5 text-xs font-semibold transition-all duration-200 ${
+                      isSelected
+                        ? "border-emerald-500 bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300"
+                        : "border-transparent bg-background text-muted-foreground hover:border-border hover:bg-muted/50"
+                    }`}
+                  >
+                    {label}
+                  </motion.button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Section divider */}
           <div className="section-divider" />
 
           {/* Password Protection toggle */}
