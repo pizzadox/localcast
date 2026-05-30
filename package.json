@@ -1,11 +1,11 @@
 {
   "name": "localcast",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "LAN Screen Sharing — pure browser WebRTC app with unlimited viewers",
   "license": "MIT",
   "private": true,
   "scripts": {
-    "dev": "cd mini-services/signaling-server && bun index.ts & sleep 2 && cd ../.. && next dev -p 3000 2>&1 | tee dev.log",
+    "dev": "node mini-services/signaling-server/keep-alive-wrapper.cjs > /tmp/signaling-server.log 2>&1 & sleep 3 && bunx next dev -p 3000 2>&1 | tee dev.log",
     "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
     "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
     "lint": "eslint .",

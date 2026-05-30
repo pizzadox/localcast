@@ -241,12 +241,7 @@ export default function Home() {
 
   const isSession = isSharing || currentView === "watching";
 
-  // ── Ensure signaling server is running (starts it in Next.js process) ──
-  useEffect(() => {
-    fetch("/api/signal").catch(() => {});
-  }, []);
-
-  // ── Feature 3: Auto-join from URL param ?join=CODE ──
+  // ── Feature 2: Auto-join from URL param ?join=CODE ──
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
@@ -591,7 +586,7 @@ export default function Home() {
           <div className="flex items-center gap-1.5">
             <Monitor className="size-3" />
             <span className="font-medium">LocalCast</span>
-            <span className="text-muted-foreground/50">v1.0.2</span>
+            <span className="text-muted-foreground/50">v1.0.3</span>
           </div>
           <div className="hidden items-center gap-1 sm:flex">
             <Shield className="size-3" />

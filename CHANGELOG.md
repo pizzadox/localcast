@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.3] - 2025-06-30
+
+### Fixed
+- **Signaling server crash**: Root cause was `createServer((_req, res) => {...})` callback in the standalone signaling server intercepting ALL HTTP requests before Socket.IO could handle them. Removed the callback to let Socket.IO manage all requests.
+- **Port conflict**: Eliminated dual signaling server architecture (inline in Next.js process + standalone mini-service). Removed the inline version (`src/lib/signaling-server.ts` and `/api/signal` route) to prevent port 3003 conflicts.
+- **Dev server startup**: Updated dev script to use `bunx next dev` and separate signaling server log output to `/tmp/signaling-server.log`.
+
+### Changed
+- **Architecture simplification**: Signaling server now runs exclusively as a standalone mini-service on port 3003 with keep-alive auto-restart wrapper. No more inline Socket.IO inside Next.js.
+- **Removed `--hot` flag**: Removed `bun --hot` from signaling server (causes crashes in sandbox environment). Keep-alive wrapper provides restart capability instead.
+
+---
+
 ## [1.0.2] - 2025-06-18
 
 ### Fixed

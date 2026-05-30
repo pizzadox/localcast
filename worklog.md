@@ -7,11 +7,11 @@
 
 ---
 
-## Current Status: ✅ Stable & Feature-Rich (Phase 6 Complete)
+## Current Status: ✅ Stable & Feature-Rich (Phase 7)
 
 ### Architecture
 - **Frontend**: Next.js 16 (port 3000) — SPA with 4 views (Home, Share Setup, Share Active, Join, Watching)
-- **Signaling Server**: Socket.IO v4 (port 3003) — Room management, WebRTC signaling, chat relay, password protection, pause/resume
+- **Signaling Server**: Socket.IO v4 standalone mini-service (port 3003) with keep-alive auto-restart wrapper
 - **Transport**: WebRTC mesh P2P — Each viewer connects directly to the broadcaster
 - **Components**: 9 modular components in `src/components/localcast/`
 - **Features**: Screen sharing, chat, reactions, recording, quality presets, share modes, password protection, pause/resume, network info, session stats
@@ -48,3 +48,27 @@ Stage Summary:
 - Dev server: Compiling successfully (200 responses)
 - All 7 files modified for mobile responsiveness
 - No new npm packages, desktop layout fully preserved
+
+---
+
+Task ID: 5
+Agent: main
+Task: Fix signaling server architecture and stability
+
+Work Log:
+- Diagnosed dual signaling server conflict (inline in Next.js process + standalone mini-service)
+- Root cause: `createServer((_req, res) => {...})` callback in standalone server intercepted ALL HTTP requests before Socket.IO could handle them
+- Removed inline signaling server (`src/lib/signaling-server.ts` and `src/app/api/signal/route.ts`)
+- Removed `/api/signal` useEffect from `page.tsx`
+- Fixed standalone server: removed `createServer` callback, changed to `createServer()` (no callback)
+- Fixed dev script to use keep-alive wrapper: `node keep-alive-wrapper.cjs & sleep 3 && next dev -p 3000`
+- Removed `--hot` flag from standalone server (causes crashes in sandbox)
+- Verified Socket.IO handshake works: returns valid sid, upgrades, ping settings
+- Both ports verified: 3003 (signaling) and 3000 (Next.js)
+- ESLint passes with 0 errors
+
+Stage Summary:
+- Signaling server is stable and functional
+- Architecture simplified: only standalone mini-service, no inline duplicate
+- Socket.IO transport polling verified working at port 3003
+- Keep-alive wrapper ensures auto-restart on crash

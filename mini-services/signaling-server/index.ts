@@ -121,18 +121,7 @@ const chatRateLimits = new Map<string, number>()
 
 const PORT = Number(process.env.PORT) || 3003
 
-const httpServer = createServer((_req, res) => {
-  // Health-check / info endpoint for bare HTTP requests
-  res.writeHead(200, { 'Content-Type': 'application/json' })
-  res.end(
-    JSON.stringify({
-      name: 'localcast-signaling-server',
-      version: '1.0.0',
-      activeRooms: rooms.size,
-      uptime: process.uptime(),
-    }),
-  )
-})
+const httpServer = createServer()
 
 const io = new Server(httpServer, {
   path: '/',
