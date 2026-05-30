@@ -211,7 +211,7 @@ export function ChatPanel({
                 size="icon"
                 onClick={onSend}
                 disabled={!input.trim()}
-                className="size-10 shrink-0 rounded-xl bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700 shadow-md shadow-emerald-500/20 transition-all disabled:opacity-40 disabled:shadow-none btn-3d ${input.trim() ? "send-active" : ""}"
+                className={`size-10 shrink-0 rounded-xl bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700 shadow-md shadow-emerald-500/20 transition-all disabled:opacity-40 disabled:shadow-none btn-3d ${input.trim() ? "send-active" : ""}`}
               >
                 <Send className="size-4" />
               </Button>

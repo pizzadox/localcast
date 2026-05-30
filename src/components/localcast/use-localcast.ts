@@ -383,10 +383,6 @@ export function useLocalCast(): UseLocalCastReturn {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const previewVideoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const annotationCanvasRef_local = useRef<HTMLCanvasElement | null>(null);
-
-  // Merge refs (annotationCanvasRef is both a local ref and an exposed ref)
-  const annotationCanvasRef = annotationCanvasRef_local;
 
   const socketRef = useRef<Socket | null>(null);
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());

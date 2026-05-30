@@ -289,6 +289,7 @@ export function WatchView({
         }}
         style={{ minHeight: "55vh" }}
       >
+          {error ? (
           <div className="flex flex-col items-center gap-4 p-8 text-center">
             <div className="flex size-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-950">
               <AlertCircle className="size-8 text-red-500" />
