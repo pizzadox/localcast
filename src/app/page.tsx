@@ -241,6 +241,11 @@ export default function Home() {
 
   const isSession = isSharing || currentView === "watching";
 
+  // ── Ensure signaling server is running (starts it in Next.js process) ──
+  useEffect(() => {
+    fetch("/api/signal").catch(() => {});
+  }, []);
+
   // ── Feature 3: Auto-join from URL param ?join=CODE ──
   useEffect(() => {
     if (typeof window === "undefined") return;
