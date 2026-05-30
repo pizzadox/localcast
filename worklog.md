@@ -1,81 +1,148 @@
-# LocalCast Frontend Build Log
+# LocalCast — Development Worklog
 
-## 2025-01-XX — Complete LocalCast Frontend Implementation
+## Project Overview
+**LocalCast** is a browser-based local network screen sharing application inspired by Deskreen. It uses WebRTC peer-to-peer video transport for low-latency screen sharing with unlimited viewers. No installation required — runs entirely in the browser.
 
-### Files Modified
+**Tech Stack**: Next.js 16 + React 19 + Tailwind CSS 4 + shadcn/ui + Socket.IO + WebRTC
 
-#### `/home/z/my-project/src/app/globals.css`
-- Added CSS custom properties for accent colors (`--accent-emerald`, `--accent-teal`) in both light and dark themes
-- Added utility classes: `.gradient-emerald`, `.gradient-emerald-subtle`, `.text-gradient`, `.dot-pulse`, `.hero-bg`, `.hero-bg-dark`
-- Added `@keyframes dot-pulse` animation for connection status indicator
+---
 
-#### `/home/z/my-project/src/app/layout.tsx`
-- Replaced the shadcn `Toaster` with Sonner's `Toaster` from `@/components/ui/sonner` (theme-aware)
-- Wrapped children in `ThemeProvider` from `next-themes` (attribute="class", defaultTheme="system")
-- Updated metadata: title → "LocalCast — Local Network Screen Sharing", updated description, keywords, and OpenGraph tags
+## Current Status: ✅ Stable & Feature-Rich (Phase 3 Complete)
 
-#### `/home/z/my-project/src/app/page.tsx` (NEW — complete rewrite)
-Built a complete single-page screen sharing application with 4 state-based views:
+### Architecture
+- **Frontend**: Next.js 16 (port 3000) — SPA with 4 views (Home, Share Setup, Share Active, Join, Watching)
+- **Signaling Server**: Socket.IO v4 (port 3003) — Room management, WebRTC signaling, chat relay
+- **Transport**: WebRTC mesh P2P — Each viewer connects directly to the broadcaster
+- **Components**: 9 modular components in `src/components/localcast/`
 
-**View 1 — Home Screen:**
-- Hero section with LocalCast branding (gradient logo, animated entrance via framer-motion)
-- Two prominent cards: "Share Your Screen" (emerald) and "Watch a Screen" (teal)
-- Feature badges: Local Network, No Cloud, Unlimited Viewers, WebRTC
-- Subtle radial gradient background (light/dark variants)
+---
 
-**View 2a — Share Setup (before sharing):**
-- Screen sharing configuration card
-- Toggle switch for "Require Approval" mode
-- Error display with AlertCircle icon
-- Start Sharing button → triggers `getDisplayMedia()`
+## Completed Work (Phase 1 — Initial Implementation)
+- ✅ Home page with hero section, feature badges, two action cards
+- ✅ Share setup with screen/window picker (`getDisplayMedia`)
+- ✅ 6-character alphanumeric room codes
+- ✅ QR code generation for mobile joining
+- ✅ Viewer list with device info (browser, OS, screen resolution)
+- ✅ Device approval flow (host approves/denies viewers)
+- ✅ WebRTC peer connections with ICE candidate queuing
+- ✅ Connection quality monitoring (good/fair/poor)
+- ✅ Fullscreen & Picture-in-Picture support
+- ✅ Keyboard shortcuts (Esc, F, M)
+- ✅ Dark mode with next-themes
+- ✅ Auto-reconnection with exponential backoff
 
-**View 2b — Share Active (while sharing):**
-- Room code display with dashed border, copy button (clipboard API), and QR code button
-- Stream preview (muted video element showing shared screen)
-- Connected viewers list with device info (browser/OS parsing from User-Agent)
-- Approve/Deny buttons for pending viewers (when approval required)
-- Disconnect button for active viewers
-- Stop Sharing button (emits END_ROOM, cleans up all resources)
+## Completed Work (Phase 2 — Code Refactoring)
+- ✅ Refactored monolithic page.tsx into 9 modular components
+- ✅ `useLocalCast` custom hook for all state/logic
+- ✅ Types module with shared definitions
+- ✅ Separate view components (Home, ShareSetup, ShareActive, Join, Watch, ShortcutsDialog)
+- ✅ Animation variants extracted to types module
 
-**View 3 — Join Room:**
-- 6-character room code input (auto-uppercased, Enter key support)
-- Join Room button (disabled until 6 chars entered)
-- Error display for connection failures
-- Socket.io connection to signaling server via `io('/?XTransformPort=3003')`
+## Completed Work (Phase 3 — Styling & Features Enhancement)
+- ✅ **Styling improvements**:
+  - Gradient borders, animated shimmer buttons, pulsing connection indicators
+  - Glass morphism effects on control bars
+  - Dot pattern background on hero section
+  - Animated viewer list items (slide-in, bounce count)
+  - Custom scrollbar styling
+  - Shadow/glow effects on cards
+  - Refined color system with emerald/teal palette
+  - Improved typography hierarchy (bold tagline, uppercase labels)
+  - Better footer with version badge and keyboard shortcut hints
 
-**View 4 — Watching Stream:**
-- Full-width video element (autoPlay, playsInline, custom controls only)
-- Control bar: Leave button, connection status badge, quality indicator, volume toggle, fullscreen toggle
-- Connection quality monitoring (good/fair/poor) via ICE connection state
-- Loading spinner while connecting
-- Error state with recovery button
-- Room code display in footer
+- ✅ **Chat messaging system**:
+  - Real-time chat between host and all viewers via Socket.IO
+  - Slide-in chat panel with message bubbles
+  - Message history (last 100 messages)
+  - Unread count badge in header
+  - Rate limiting (100ms between messages)
+  - Sender identification (host vs viewer badges)
+  - Keyboard shortcut `C` to toggle chat
 
-**WebRTC Implementation:**
-- Broadcaster: Creates RTCPeerConnection per viewer, adds MediaStream tracks, creates offer, handles ICE candidates with queuing for early candidates
-- Viewer: Receives offer, creates RTCPeerConnection, sets remote description, creates answer, handles ICE candidates with queuing
-- ICE servers: stun.l.google.com:19302, stun1.l.google.com:19302
-- Full cleanup on disconnect/unmount (close peers, stop tracks, disconnect socket)
+- ✅ **Quality presets**:
+  - Three presets: 1080p (5Mbps), 720p (2.5Mbps), 480p (1Mbps)
+  - Visual selector in share setup with FPS info
+  - Per-preset bitrate constraints on RTCPeerConnection senders
+  - Applied to `getDisplayMedia` constraints
 
-**Socket Events:**
-- Broadcast: CREATE_ROOM, END_ROOM, VIEWER_APPROVED, VIEWER_DENIED, VIEWER_DISCONNECTED, WEBRTC_SIGNAL
-- Viewer: JOIN_ROOM, WEBRTC_SIGNAL
-- Server→Client: ROOM_CREATED, VIEWER_JOINED, VIEWER_LEFT, ROOM_JOINED, WAITING_APPROVAL, APPROVED, DENIED, ROOM_ENDED, WEBRTC_SIGNAL, ERROR
+- ✅ **Emoji reactions**:
+  - 7 reaction emojis (👍 👎 ❤️ 😂 🎉 👏 🔥)
+  - Viewer reaction bar on watch view
+  - Floating reaction animations on host view (auto-dismiss after 5s)
+  - Server-side validation against whitelist
 
-**Components Used:** Card (all sub-components), Button, Badge, Input, Dialog (QR code), Switch (approval toggle)
-**Icons Used:** Monitor, MonitorPlay, MonitorUp, Copy, QrCode, Users, Wifi, WifiOff, Maximize, Minimize, Volume2, VolumeX, ArrowLeft, Shield, X, Check, AlertCircle, Eye
-**Animations:** framer-motion AnimatePresence with mode="wait" for smooth view transitions
+- ✅ **Live connection stats**:
+  - Real-time bitrate monitoring via WebRTC `getStats()` API
+  - 4-stat panel: Peers, Bitrate, Resolution, Data Sent
+  - Collapsible panel on share active view
+  - Session timer in header and room code card
+  - Latency measurement via PING/PONG
 
-### Technical Notes
-- All code is client-side (`'use client'` directive)
-- State managed via useState/useRef (no external state library)
-- Proper useEffect cleanup for all resources (peer connections, media streams, socket connections)
-- Socket singleton pattern via `getSocket()` callback
-- Pending ICE candidates queued when remote description not yet set
-- Device info parsing from navigator.userAgent for viewer identification
-- Fullscreen API with event listener for Esc key detection
-- QR code URL format: `{origin}{pathname}#{roomId}`
+- ✅ **Backend additions**:
+  - `CHAT_MESSAGE` handler with rate limiting and room broadcast
+  - `REACTION` handler with emoji whitelist (host-only forwarding)
+  - `VIEWER_COUNT_UPDATE` broadcast on join/leave/kick/deny
+  - `broadcastViewerCount()` helper function
+  - Per-socket chat rate-limit tracking with cleanup
 
-### Type Safety
-- Zero TypeScript errors in modified files (verified with `tsc --noEmit`)
-- Pre-existing errors in `skills/` directory are unrelated to this work
+- ✅ **Bug fixes**:
+  - Fixed card click propagation (added `e.stopPropagation()` on buttons)
+  - Fixed lint error: "set-state-in-effect" in bitrate stats
+  - Fixed Fast Refresh reload issues from proper cleanup ordering
+
+---
+
+## Files Structure
+
+```
+src/
+├── app/
+│   ├── page.tsx              # Main orchestrator with header/footer/dialogs
+│   ├── layout.tsx            # ThemeProvider + Sonner toaster
+│   └── globals.css           # Custom emerald/teal theme + animations
+├── components/
+│   ├── localcast/
+│   │   ├── types.ts          # Shared types, constants, helpers
+│   │   ├── use-localcast.ts  # Core hook (state, WebRTC, Socket.IO)
+│   │   ├── home-view.tsx     # Landing page
+│   │   ├── share-setup-view.tsx  # Share configuration
+│   │   ├── share-active-view.tsx # Active sharing + viewers + stats
+│   │   ├── join-view.tsx     # Room code input
+│   │   ├── watch-view.tsx    # Stream viewer + reactions
+│   │   ├── chat-panel.tsx    # Slide-in chat panel
+│   │   └── shortcuts-dialog.tsx # Keyboard shortcuts modal
+│   └── ui/                   # shadcn/ui components
+mini-services/
+└── signaling-server/
+    ├── index.ts              # Socket.IO signaling server
+    └── package.json
+```
+
+---
+
+## Unresolved Issues & Risks
+
+1. **WebRTC mesh scaling**: Each viewer creates a separate P2P connection to the broadcaster. With many viewers, the broadcaster's upload bandwidth becomes the bottleneck. For 10+ viewers, a SFU architecture would be better but is significantly more complex.
+
+2. **ICE candidate trickle**: In some network configurations, ICE candidates may take time to gather. The queuing mechanism handles early candidates, but very slow networks may see delayed connections.
+
+3. **No audio echo cancellation**: The `getDisplayMedia` API captures system audio. There's no echo cancellation for the broadcaster's microphone if they also share audio.
+
+4. **No persistent rooms**: Rooms exist only in memory. Server restart loses all rooms. For production, room persistence via database would be needed.
+
+5. **No authentication**: Anyone with the room code can join. The approval system helps, but there's no identity verification.
+
+6. **Browser compatibility**: `getDisplayMedia` is supported in Chrome, Edge, Firefox, and Safari 15+. Older browsers won't work.
+
+---
+
+## Priority Recommendations for Next Phase
+
+1. **HIGH**: Add a "How It Works" section or onboarding tooltip for first-time users
+2. **HIGH**: Add recording/download capability (MediaRecorder API)
+3. **MEDIUM**: Add audio-only sharing mode for low-bandwidth scenarios
+4. **MEDIUM**: Add participant name customization instead of auto-detected browser names
+5. **MEDIUM**: Add network quality auto-adaptation (auto-lower quality on poor connections)
+6. **LOW**: Add room password protection
+7. **LOW**: Add connection history log with timestamps
+8. **LOW**: PWA support for mobile "Add to Home Screen"

@@ -13,8 +13,8 @@ import {
 import { io, Socket } from "socket.io-client";
 import { toast } from "sonner";
 
-import type { View, ViewerInfo } from "./types";
-import { ICE_CONFIG, parseDeviceInfo } from "./types";
+import type { View, ViewerInfo, ChatMessage, Reaction, QualityPreset } from "./types";
+import { ICE_CONFIG, parseDeviceInfo, QUALITY_PRESETS, generateId } from "./types";
 
 // ─── Hook Return Type ────────────────────────────────────────────────────
 
@@ -29,6 +29,8 @@ export interface UseLocalCastReturn {
   requireApproval: boolean;
   setRequireApproval: (v: boolean) => void;
   hostId: string;
+  qualityPreset: QualityPreset;
+  setQualityPreset: (v: QualityPreset) => void;
 
   // Viewer state
   viewerInput: string;
@@ -47,6 +49,8 @@ export interface UseLocalCastReturn {
   setShowQrDialog: (v: boolean) => void;
   showShortcutsDialog: boolean;
   setShowShortcutsDialog: (v: boolean) => void;
+  showChatPanel: boolean;
+  setShowChatPanel: (v: boolean) => void;
   copied: boolean;
   elapsedDisplay: string;
   elapsedTime: number;
@@ -58,6 +62,19 @@ export interface UseLocalCastReturn {
   qrUrl: string;
   streamResolution: string;
   latency: number;
+
+  // Chat
+  chatMessages: ChatMessage[];
+  chatInput: string;
+  setChatInput: (v: string) => void;
+  sendChatMessage: () => void;
+  unreadCount: number;
+
+  // Reactions
+  recentReactions: Reaction[];
+
+  // Live stats
+  currentBitrate: number;
 
   // Refs
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -75,6 +92,7 @@ export interface UseLocalCastReturn {
   toggleFullscreen: () => void;
   togglePiP: () => Promise<void>;
   copyRoomCode: () => Promise<void>;
+  sendReaction: (emoji: string) => void;
   cleanupAll: () => void;
 }
 
@@ -89,6 +107,7 @@ export function useLocalCast(): UseLocalCastReturn {
   const [isSharing, setIsSharing] = useState(false);
   const [requireApproval, setRequireApproval] = useState(false);
   const [hostId, setHostId] = useState<string>("");
+  const [qualityPreset, setQualityPreset] = useState<QualityPreset>("medium");
 
   // ── Viewer State ──
   const [viewerInput, setViewerInput] = useState("");
@@ -107,14 +126,23 @@ export function useLocalCast(): UseLocalCastReturn {
   const [copied, setCopied] = useState(false);
   const [waitingApproval, setWaitingApproval] = useState(false);
 
+  // ── Chat State ──
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [showChatPanel, setShowChatPanel] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // ── Reactions State ──
+  const [recentReactions, setRecentReactions] = useState<Reaction[]>([]);
+
   // ── Feature: Session Timer State ──
   const [elapsedTime, setElapsedTime] = useState<number>(0);
   const shareStartRef = useRef<Date | null>(null);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Feature: Connection Stats State ──
-  const [statsOpen, setStatsOpen] = useState(false);
   const [streamResolution, setStreamResolution] = useState<string>("—");
+  const [currentBitrate, setCurrentBitrate] = useState(0);
 
   // ── Feature: Keyboard Shortcuts Dialog ──
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false);
@@ -137,12 +165,16 @@ export function useLocalCast(): UseLocalCastReturn {
   const intentionalDisconnectRef = useRef(false);
   const lastPingRef = useRef<number>(0);
 
+  // ── Stats tracking refs ──
+  const statsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const prevBytesSentRef = useRef<Map<string, number>>(new Map());
+
   // ── Get or create socket with auto-reconnection ──
   const getSocket = useCallback((): Socket => {
     if (!socketRef.current) {
       intentionalDisconnectRef.current = false;
       const socket = io("/?XTransformPort=3003", {
-        reconnection: false, // We handle reconnection ourselves
+        reconnection: false,
         timeout: 10000,
       });
 
@@ -155,18 +187,14 @@ export function useLocalCast(): UseLocalCastReturn {
       });
 
       socket.on("disconnect", (reason) => {
-        // Only auto-reconnect if it wasn't intentional and we're in an active session
         if (
           !intentionalDisconnectRef.current &&
           (isSharing || currentView === "watching" || currentView === "join")
         ) {
           const attempt = reconnectAttemptRef.current;
-          const delay = Math.min(1000 * Math.pow(2, attempt), 30000); // Max 30s
+          const delay = Math.min(1000 * Math.pow(2, attempt), 30000);
           reconnectAttemptRef.current = attempt + 1;
 
-          console.log(
-            `[LocalCast] Reconnecting in ${Math.round(delay / 1000)}s (attempt ${attempt + 1})...`
-          );
           toast.warning(
             `Connection lost. Reconnecting in ${Math.round(delay / 1000)}s...`,
             { id: "reconnect" }
@@ -193,16 +221,15 @@ export function useLocalCast(): UseLocalCastReturn {
       "VIEWER_DISCONNECTED", "ERROR", "ROOM_JOINED",
       "VIEWER_APPROVED", "VIEWER_DENIED", "HOST_DISCONNECTED",
       "ROOM_NOT_FOUND", "KICKED", "ROOM_SETTINGS_UPDATED",
+      "CHAT_MESSAGE", "REACTION", "VIEWER_COUNT_UPDATE",
     ];
     events.forEach((e) => socket.removeAllListeners(e));
   }, []);
 
   // ── Cleanup resources ──
   const cleanupAll = useCallback(() => {
-    // Mark disconnect as intentional
     intentionalDisconnectRef.current = true;
 
-    // Clear reconnection timer
     if (reconnectTimerRef.current) {
       clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = null;
@@ -210,7 +237,6 @@ export function useLocalCast(): UseLocalCastReturn {
     reconnectAttemptRef.current = 0;
     toast.dismiss("reconnect");
 
-    // Close all peer connections
     peersRef.current.forEach((pc) => pc.close());
     peersRef.current.clear();
 
@@ -221,26 +247,30 @@ export function useLocalCast(): UseLocalCastReturn {
 
     pendingCandidatesRef.current.clear();
 
-    // Stop local media stream
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((t) => t.stop());
       localStreamRef.current = null;
     }
 
-    // Disconnect socket
     if (socketRef.current) {
       removeAllListeners(socketRef.current);
       socketRef.current.disconnect();
       socketRef.current = null;
     }
 
-    // Reset viewer video
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
     if (previewVideoRef.current) {
       previewVideoRef.current.srcObject = null;
     }
+
+    // Stats interval cleanup
+    if (statsIntervalRef.current) {
+      clearInterval(statsIntervalRef.current);
+      statsIntervalRef.current = null;
+    }
+    prevBytesSentRef.current.clear();
 
     setConnectionStatus("disconnected");
     setIsSharing(false);
@@ -251,8 +281,13 @@ export function useLocalCast(): UseLocalCastReturn {
     setConnectionQuality("good");
     setHostId("");
     setWaitingApproval(false);
+    setChatMessages([]);
+    setChatInput("");
+    setShowChatPanel(false);
+    setUnreadCount(0);
+    setRecentReactions([]);
+    setCurrentBitrate(0);
 
-    // Session timer cleanup
     shareStartRef.current = null;
     setElapsedTime(0);
     if (timerIntervalRef.current) {
@@ -260,9 +295,7 @@ export function useLocalCast(): UseLocalCastReturn {
       timerIntervalRef.current = null;
     }
 
-    // Stats cleanup
     setStreamResolution("—");
-    setStatsOpen(false);
   }, [removeAllListeners]);
 
   // ── Feature: Session Timer effect ──
@@ -297,7 +330,6 @@ export function useLocalCast(): UseLocalCastReturn {
         }
       };
       video.addEventListener("loadedmetadata", updateResolution);
-      // Also poll in case loadedmetadata already fired
       const poll = setInterval(() => {
         updateResolution();
       }, 2000);
@@ -307,6 +339,35 @@ export function useLocalCast(): UseLocalCastReturn {
       };
     }
   }, [isSharing]);
+
+  // ── Feature: Live bitrate stats for broadcaster ──
+  useEffect(() => {
+    if (!isSharing || peersRef.current.size === 0) return;
+
+    statsIntervalRef.current = setInterval(() => {
+      peersRef.current.forEach((pc) => {
+        const stats = pc.getStats();
+        stats.then((report) => {
+          report.forEach((value) => {
+            if (value.type === "outbound-rtp" && value.kind === "video") {
+              const bytes = value.bytesSent ?? 0;
+              const prev = prevBytesSentRef.current.get(pc.id) ?? 0;
+              const delta = bytes - prev;
+              const bitrate = (delta * 8) / 3;
+              setCurrentBitrate(bitrate);
+              prevBytesSentRef.current.set(pc.id, bytes);
+            }
+          });
+        });
+      });
+    }, 3000);
+    return () => {
+      if (statsIntervalRef.current) {
+        clearInterval(statsIntervalRef.current);
+        statsIntervalRef.current = null;
+      }
+    };
+  }, [isSharing, viewers.length]);
 
   // ── Copy room code ──
   const copyRoomCode = useCallback(async () => {
@@ -320,29 +381,64 @@ export function useLocalCast(): UseLocalCastReturn {
     }
   }, [roomId]);
 
+  // ── Send Chat Message ──
+  const sendChatMessage = useCallback(() => {
+    const msg = chatInput.trim();
+    if (!msg || !socketRef.current?.connected || !roomId) return;
+
+    const socket = socketRef.current;
+    const senderType = isSharing ? "host" : "viewer";
+    const senderName = isSharing ? "Host" : parseDeviceInfo(navigator.userAgent).browser;
+
+    socket.emit("CHAT_MESSAGE", {
+      roomId,
+      message: msg,
+      senderName,
+      senderType,
+    });
+    setChatInput("");
+  }, [chatInput, roomId, isSharing]);
+
+  // ── Send Reaction (viewer only) ──
+  const sendReaction = useCallback((emoji: string) => {
+    if (!socketRef.current?.connected || !roomId) return;
+    socketRef.current.emit("REACTION", {
+      roomId,
+      emoji,
+    });
+  }, [roomId]);
+
   // ── Broadcaster: Create Peer for Viewer ──
   const createBroadcasterPeer = useCallback(
     (viewerId: string, socket: Socket, stream: MediaStream) => {
       const pc = new RTCPeerConnection(ICE_CONFIG);
       peersRef.current.set(viewerId, pc);
 
-      // Initialize pending candidates for this viewer
       if (!pendingCandidatesRef.current.has(viewerId)) {
         pendingCandidatesRef.current.set(viewerId, []);
       }
 
-      // Add local tracks
       stream.getTracks().forEach((track) => {
         pc.addTrack(track, stream);
       });
 
-      // Create and send offer
+      // Set bitrate on sender
       pc.onnegotiationneeded = async () => {
         try {
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
 
-          // Send via signaling server — format must match server protocol
+          // Set bitrate constraint on video sender
+          const senders = pc.getSenders();
+          const videoSender = senders.find((s) => s.track?.kind === "video");
+          if (videoSender) {
+            const preset = QUALITY_PRESETS[qualityPreset];
+            const params = videoSender.getParameters();
+            if (!params.encodings) params.encodings = [{}];
+            params.encodings[0].maxBitrate = preset.bitrate;
+            videoSender.setParameters(params);
+          }
+
           socket.emit("WEBRTC_SIGNAL", {
             targetId: viewerId,
             signal: offer,
@@ -352,7 +448,6 @@ export function useLocalCast(): UseLocalCastReturn {
         }
       };
 
-      // ICE candidates
       pc.onicecandidate = (event) => {
         if (event.candidate) {
           socket.emit("WEBRTC_SIGNAL", {
@@ -362,7 +457,6 @@ export function useLocalCast(): UseLocalCastReturn {
         }
       };
 
-      // Connection state
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
           setViewers((prev) => prev.filter((v) => v.id !== viewerId));
@@ -373,14 +467,12 @@ export function useLocalCast(): UseLocalCastReturn {
         }
       };
     },
-    []
+    [qualityPreset]
   );
 
   // ── Broadcaster: Handle incoming signal from viewer ──
-  // BUG FIX: Use getSocket() pattern for consistent socket access
   const handleBroadcasterSignal = useCallback(
     (data: { from: string; signal: unknown }) => {
-      const socket = getSocket();
       const viewerId = data.from;
       const signal = data.signal;
       if (!viewerId || !signal) return;
@@ -390,7 +482,6 @@ export function useLocalCast(): UseLocalCastReturn {
 
       const sig = signal as RTCSessionDescriptionInit | RTCIceCandidateInit;
 
-      // Check if it's an answer (has 'type' and 'sdp') or ICE candidate (has 'candidate')
       if ("type" in sig && sig.type === "answer") {
         pc.setRemoteDescription(new RTCSessionDescription(sig as RTCSessionDescriptionInit))
           .catch((err) => console.error("Error setting remote description:", err));
@@ -401,17 +492,13 @@ export function useLocalCast(): UseLocalCastReturn {
             console.error("Error adding ICE candidate:", err)
           );
         } else {
-          // Queue candidates until remote description is set
           const pending = pendingCandidatesRef.current.get(viewerId) || [];
           pending.push(candidate);
           pendingCandidatesRef.current.set(viewerId, pending);
         }
       }
-
-      // Suppress unused variable warning
-      void socket;
     },
-    [getSocket]
+    []
   );
 
   // ── Broadcaster: Stop Sharing ──
@@ -427,26 +514,27 @@ export function useLocalCast(): UseLocalCastReturn {
       setConnectionStatus("connecting");
       setError(null);
 
-      // 1. Get display media
+      const preset = QUALITY_PRESETS[qualityPreset];
+
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: {
           displaySurface: "monitor",
+          width: preset.width,
+          height: preset.height,
+          frameRate: preset.frameRate,
         },
         audio: true,
       });
       localStreamRef.current = stream;
 
-      // Handle stream ending (user clicks stop sharing in browser)
       stream.getVideoTracks()[0].addEventListener("ended", () => {
         stopSharing();
       });
 
-      // 2. Connect to signaling server
       const socket = getSocket();
       removeAllListeners(socket);
 
       socket.on("connect", () => {
-        // 3. Create room
         socket.emit("CREATE_ROOM", {
           requireApproval,
         });
@@ -475,14 +563,11 @@ export function useLocalCast(): UseLocalCastReturn {
             approved: info.approved ?? !requireApproval,
           };
           setViewers((prev) => {
-            // Avoid duplicates
             if (prev.some((v) => v.id === data.viewerId)) return prev;
             return [...prev, newViewer];
           });
           toast.info(`${parsed.deviceName} joined`);
 
-          // Create WebRTC peer connection for this viewer
-          // If approval is required, only create peer when approved
           if (newViewer.approved) {
             createBroadcasterPeer(data.viewerId, socket, stream);
           }
@@ -499,6 +584,22 @@ export function useLocalCast(): UseLocalCastReturn {
           }
           pendingCandidatesRef.current.delete(data.viewerId);
           toast.info("A viewer left");
+        });
+
+        socket.on("CHAT_MESSAGE", (data: ChatMessage) => {
+          setChatMessages((prev) => [...prev.slice(-99), { ...data, id: data.id || generateId() }]);
+          if (!showChatPanel) {
+            setUnreadCount((c) => c + 1);
+          }
+        });
+
+        socket.on("REACTION", (data: Reaction) => {
+          const reaction: Reaction = { ...data, id: generateId() };
+          setRecentReactions((prev) => [...prev.slice(-19), reaction]);
+          // Auto-remove after 5s
+          setTimeout(() => {
+            setRecentReactions((prev) => prev.filter((r) => r.id !== reaction.id));
+          }, 5000);
         });
 
         socket.on("ERROR", (data: { message: string }) => {
@@ -526,7 +627,7 @@ export function useLocalCast(): UseLocalCastReturn {
       setConnectionStatus("disconnected");
       setError("Screen sharing permission denied or unavailable.");
     }
-  }, [getSocket, requireApproval, removeAllListeners, createBroadcasterPeer, handleBroadcasterSignal, stopSharing]);
+  }, [getSocket, qualityPreset, requireApproval, removeAllListeners, createBroadcasterPeer, handleBroadcasterSignal, stopSharing, showChatPanel]);
 
   // ── Broadcaster: Approve Viewer ──
   const approveViewer = useCallback(
@@ -580,7 +681,6 @@ export function useLocalCast(): UseLocalCastReturn {
   );
 
   // ── Viewer: Handle incoming signal from broadcaster ──
-  // BUG FIX: Use getSocket() instead of socket parameter for stable access
   const handleViewerSignal = useCallback(
     (data: { from: string; signal: unknown }) => {
       const socket = getSocket();
@@ -593,7 +693,6 @@ export function useLocalCast(): UseLocalCastReturn {
       if ("type" in sig && sig.type === "offer") {
         const offer = sig as RTCSessionDescriptionInit;
 
-        // Close existing peer if any
         if (viewerPeerRef.current) {
           viewerPeerRef.current.close();
         }
@@ -601,19 +700,16 @@ export function useLocalCast(): UseLocalCastReturn {
         const pc = new RTCPeerConnection(ICE_CONFIG);
         viewerPeerRef.current = pc;
 
-        // Initialize pending candidates
         if (!pendingCandidatesRef.current.has(broadcasterId)) {
           pendingCandidatesRef.current.set(broadcasterId, []);
         }
 
-        // Receive remote tracks
         pc.ontrack = (event) => {
           if (videoRef.current && event.streams[0]) {
             videoRef.current.srcObject = event.streams[0];
           }
         };
 
-        // ICE candidates
         pc.onicecandidate = (event) => {
           if (event.candidate) {
             socket.emit("WEBRTC_SIGNAL", {
@@ -623,7 +719,6 @@ export function useLocalCast(): UseLocalCastReturn {
           }
         };
 
-        // Connection quality monitoring
         pc.onconnectionstatechange = () => {
           if (pc.connectionState === "connected") {
             setConnectionQuality("good");
@@ -650,7 +745,6 @@ export function useLocalCast(): UseLocalCastReturn {
           }
         };
 
-        // Set remote description and create answer
         pc.setRemoteDescription(new RTCSessionDescription(offer))
           .then(async () => {
             const answer = await pc.createAnswer();
@@ -661,7 +755,6 @@ export function useLocalCast(): UseLocalCastReturn {
               signal: answer,
             });
 
-            // Drain pending ICE candidates
             const pending = pendingCandidatesRef.current.get(broadcasterId) || [];
             for (const cand of pending) {
               await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
@@ -685,6 +778,8 @@ export function useLocalCast(): UseLocalCastReturn {
           pendingCandidatesRef.current.set(broadcasterId, pending);
         }
       }
+
+      void socket;
     },
     [getSocket]
   );
@@ -721,7 +816,6 @@ export function useLocalCast(): UseLocalCastReturn {
           toast.info("Waiting for host approval...");
         }
 
-        // Send device info to host
         socket.emit("DEVICE_INFO", {
           deviceName: myDeviceInfo.deviceName,
           os: myDeviceInfo.os,
@@ -769,6 +863,13 @@ export function useLocalCast(): UseLocalCastReturn {
         setCurrentView("home");
       });
 
+      socket.on("CHAT_MESSAGE", (data: ChatMessage) => {
+        setChatMessages((prev) => [...prev.slice(-99), { ...data, id: data.id || generateId() }]);
+        if (!showChatPanel) {
+          setUnreadCount((c) => c + 1);
+        }
+      });
+
       socket.on("ERROR", (data: { message: string }) => {
         toast.error(data.message);
         setError(data.message);
@@ -785,7 +886,7 @@ export function useLocalCast(): UseLocalCastReturn {
       toast.error("Cannot connect to signaling server");
       setError("Cannot connect to signaling server. Make sure it's running on port 3003.");
     });
-  }, [viewerInput, getSocket, cleanupAll, removeAllListeners, handleViewerSignal]);
+  }, [viewerInput, getSocket, cleanupAll, removeAllListeners, handleViewerSignal, showChatPanel]);
 
   // ── Viewer: Leave Room ──
   const leaveRoom = useCallback(() => {
@@ -815,7 +916,6 @@ export function useLocalCast(): UseLocalCastReturn {
   // ── Feature: Keyboard Shortcuts ──
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // Don't trigger shortcuts when typing in inputs
       if (
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement
@@ -849,6 +949,14 @@ export function useLocalCast(): UseLocalCastReturn {
             setIsMuted(!isMuted);
           }
           break;
+        case "c":
+        case "C":
+          if (currentView === "share" || currentView === "watching") {
+            e.preventDefault();
+            setShowChatPanel((prev) => !prev);
+            setUnreadCount(0);
+          }
+          break;
         default:
           break;
       }
@@ -856,9 +964,9 @@ export function useLocalCast(): UseLocalCastReturn {
 
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [currentView, isMuted, showShortcutsDialog, leaveRoom, toggleFullscreen, cleanupAll]);
+  }, [currentView, isMuted, showShortcutsDialog, showChatPanel, leaveRoom, toggleFullscreen, cleanupAll]);
 
-  // ── Feature: Picture-in-Picture Toggle ──
+  // ── Picture-in-Picture Toggle ──
   const togglePiP = useCallback(async () => {
     if (!videoRef.current) return;
     try {
@@ -893,9 +1001,9 @@ export function useLocalCast(): UseLocalCastReturn {
     };
   }, [cleanupAll]);
 
-  // ── Feature: Derived stats for broadcaster ──
+  // ── Derived stats ──
   const activePeerCount = viewers.filter((v) => v.approved).length;
-  const estimatedBitrate = 2_500_000; // ~2.5 Mbps estimated
+  const estimatedBitrate = currentBitrate > 0 ? currentBitrate : QUALITY_PRESETS[qualityPreset].bitrate;
   const estimatedDataTransferred = elapsedTime > 0
     ? (elapsedTime / 1000) * (estimatedBitrate / 8) * activePeerCount
     : 0;
@@ -906,10 +1014,10 @@ export function useLocalCast(): UseLocalCastReturn {
       ? `${window.location.origin}${window.location.pathname}#${roomId}`
       : "";
 
-  // ── Feature: PiP support check ──
+  // ── PiP support ──
   const pipSupported = typeof document !== "undefined" && !!document.pictureInPictureEnabled;
 
-  // ── Feature: Latency measurement via PING/PONG ──
+  // ── Latency measurement ──
   useEffect(() => {
     if (connectionStatus !== "connected" || !socketRef.current) return;
 
@@ -924,7 +1032,6 @@ export function useLocalCast(): UseLocalCastReturn {
     return () => clearInterval(interval);
   }, [connectionStatus]);
 
-  // ── Socket PONG handler (added once, not duplicated) ──
   useEffect(() => {
     const socket = socketRef.current;
     if (!socket) return;
@@ -941,27 +1048,25 @@ export function useLocalCast(): UseLocalCastReturn {
     return () => { socket.off("PONG", handler); };
   }, []);
 
-  // ── Format elapsed time for display ──
+  // ── Format elapsed ──
   const elapsedDisplay = formatElapsedDisplay(elapsedTime);
 
   return {
-    // View state
     currentView,
     setCurrentView,
-    // Broadcaster state
     roomId,
     isSharing,
     requireApproval,
     setRequireApproval,
     hostId,
-    // Viewer state
+    qualityPreset,
+    setQualityPreset,
     viewerInput,
     setViewerInput,
     isMuted,
     setIsMuted,
     isFullscreen,
     connectionQuality,
-    // Shared state
     connectionStatus,
     viewers,
     error,
@@ -970,6 +1075,8 @@ export function useLocalCast(): UseLocalCastReturn {
     setShowQrDialog,
     showShortcutsDialog,
     setShowShortcutsDialog,
+    showChatPanel,
+    setShowChatPanel,
     copied,
     elapsedDisplay,
     elapsedTime,
@@ -981,11 +1088,16 @@ export function useLocalCast(): UseLocalCastReturn {
     qrUrl,
     streamResolution,
     latency,
-    // Refs
+    chatMessages,
+    chatInput,
+    setChatInput,
+    sendChatMessage,
+    unreadCount,
+    recentReactions,
+    currentBitrate,
     videoRef,
     previewVideoRef,
     containerRef,
-    // Actions
     startSharing,
     stopSharing,
     approveViewer,
@@ -996,11 +1108,11 @@ export function useLocalCast(): UseLocalCastReturn {
     toggleFullscreen,
     togglePiP,
     copyRoomCode,
+    sendReaction,
     cleanupAll,
   };
 }
 
-// ── Local helper ──
 function formatElapsedDisplay(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
   const minutes = Math.floor(totalSeconds / 60);

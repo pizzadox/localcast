@@ -1,8 +1,8 @@
 "use client";
 
 // ─── ShareActiveView ─────────────────────────────────────────────────────
-// Active screen sharing view showing room code, preview, viewer list,
-// stats panel, and stop button.
+// Active screen sharing view with room code, preview, viewer list,
+// live stats, and controls.
 
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -32,10 +32,13 @@ import {
   BarChart3,
   Activity,
   ChevronDown,
+  Zap,
+  Clock,
+  HardDrive,
 } from "lucide-react";
 
 import { useState } from "react";
-import { pageVariants, formatBytes } from "./types";
+import { pageVariants, formatBytes, formatBitrate, formatElapsed, QUALITY_PRESETS } from "./types";
 import type { ViewerInfo } from "./types";
 
 interface ShareActiveViewProps {
@@ -47,6 +50,8 @@ interface ShareActiveViewProps {
   activePeerCount: number;
   estimatedDataTransferred: number;
   streamResolution: string;
+  currentBitrate: number;
+  elapsedTime: number;
   onCopyRoomCode: () => void;
   onShowQrDialog: () => void;
   onApproveViewer: (viewerId: string) => void;
@@ -64,6 +69,8 @@ export function ShareActiveView({
   activePeerCount,
   estimatedDataTransferred,
   streamResolution,
+  currentBitrate,
+  elapsedTime,
   onCopyRoomCode,
   onShowQrDialog,
   onApproveViewer,
@@ -86,67 +93,72 @@ export function ShareActiveView({
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Left Column: Room Info + Controls */}
         <div className="space-y-4 lg:col-span-2">
-          {/* Room Code Card with animated gradient border when sharing */}
-          <div className="relative rounded-xl p-[2px]" style={{
-            background: "conic-gradient(from 0deg, #10b981, #059669, #14b8a6, #10b981)",
-            animation: "spin 3s linear infinite",
-          }}>
-            <Card className="relative rounded-[10px]">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Wifi className="size-5 text-emerald-600 dark:text-emerald-400" />
-                  Room Code
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex flex-1 items-center justify-center rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50 p-4 dark:border-emerald-700 dark:bg-emerald-950/50">
-                    <span className="room-code-display text-3xl font-bold text-emerald-700 dark:text-emerald-300">
-                      {roomId}
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={onCopyRoomCode}
-                      className="size-10"
-                      title="Copy room code"
-                    >
-                      {copied ? (
-                        <Check className="size-4 text-emerald-600" />
-                      ) : (
-                        <Copy className="size-4" />
-                      )}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={onShowQrDialog}
-                      className="size-10"
-                      title="Show QR code"
-                    >
-                      <QrCode className="size-4" />
-                    </Button>
-                  </div>
+          {/* Room Code Card */}
+          <Card className="overflow-hidden border-2">
+            <div className="h-1 gradient-emerald" />
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Wifi className="size-5 text-emerald-600 dark:text-emerald-400" />
+                Room Code
+                <Badge variant="outline" className="ml-auto gap-1 text-xs">
+                  <Clock className="size-3" />
+                  {formatElapsed(elapsedTime)}
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="flex flex-1 items-center justify-center rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50/50 p-4 dark:border-emerald-700 dark:bg-emerald-950/30">
+                  <span className="room-code-display text-3xl font-bold text-emerald-700 dark:text-emerald-300">
+                    {roomId}
+                  </span>
                 </div>
-                <p className="text-center text-xs text-muted-foreground">
-                  Share this code or scan the QR code to join
-                </p>
-              </CardContent>
-            </Card>
-          </div>
+                <div className="flex flex-col gap-2">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={onCopyRoomCode}
+                    className="size-10"
+                    title="Copy room code"
+                  >
+                    {copied ? (
+                      <Check className="size-4 text-emerald-600" />
+                    ) : (
+                      <Copy className="size-4" />
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={onShowQrDialog}
+                    className="size-10"
+                    title="Show QR code"
+                  >
+                    <QrCode className="size-4" />
+                  </Button>
+                </div>
+              </div>
+              <p className="text-center text-xs text-muted-foreground">
+                Share this code or scan the QR code to join
+              </p>
+            </CardContent>
+          </Card>
 
           {/* Preview Card */}
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Monitor className="size-5 text-muted-foreground" />
-                Stream Preview
-              </CardTitle>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Monitor className="size-4 text-muted-foreground" />
+                  Stream Preview
+                </CardTitle>
+                <Badge variant="outline" className="text-[10px]">
+                  {streamResolution}
+                </Badge>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="overflow-hidden rounded-lg border bg-black">
+              <div className="overflow-hidden rounded-lg border bg-black shadow-inner">
                 <video
                   ref={previewVideoRef}
                   autoPlay
@@ -162,12 +174,12 @@ export function ShareActiveView({
         {/* Right Column: Viewers + Stats */}
         <div className="space-y-4">
           <Card className="h-full">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between text-lg">
-                <div className="flex items-center gap-2">
-                  <Users className="size-5 text-teal-600 dark:text-teal-400" />
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Users className="size-4 text-teal-600 dark:text-teal-400" />
                   Viewers
-                </div>
+                </CardTitle>
                 <AnimatePresence mode="popLayout">
                   <motion.div
                     key={viewers.length}
@@ -176,11 +188,20 @@ export function ShareActiveView({
                     exit={{ scale: 0.5 }}
                     transition={{ type: "spring", stiffness: 500, damping: 25 }}
                   >
-                    <Badge variant="secondary">{viewers.length}</Badge>
+                    <Badge
+                      variant="secondary"
+                      className={
+                        viewers.length > 0
+                          ? "bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300"
+                          : ""
+                      }
+                    >
+                      {viewers.length}
+                    </Badge>
                   </motion.div>
                 </AnimatePresence>
-              </CardTitle>
-              <CardDescription>
+              </div>
+              <CardDescription className="text-xs">
                 {viewers.length === 0
                   ? "No viewers connected yet"
                   : `${viewers.length} viewer${viewers.length > 1 ? "s" : ""} connected`}
@@ -189,7 +210,6 @@ export function ShareActiveView({
             <CardContent className="px-4 pb-4">
               {viewers.length === 0 ? (
                 <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-8 text-center">
-                  {/* Scanning rings animation */}
                   <div className="relative mb-2 flex size-12 items-center justify-center">
                     <span className="absolute inset-0 animate-ping rounded-full bg-emerald-400/20" />
                     <span className="absolute inset-2 animate-pulse rounded-full border-2 border-dashed border-emerald-400/30" />
@@ -201,10 +221,13 @@ export function ShareActiveView({
                   </p>
                 </div>
               ) : (
-                <div className="space-y-2 max-h-96 overflow-y-auto custom-scrollbar pr-1">
+                <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar pr-1">
                   {viewers.map((viewer) => (
-                    <div
+                    <motion.div
                       key={viewer.id}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 8 }}
                       className={`flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50 ${
                         viewer.approved
                           ? "border-l-4 border-l-emerald-500"
@@ -270,7 +293,7 @@ export function ShareActiveView({
                           <X className="size-3.5" />
                         </Button>
                       )}
-                    </div>
+                    </motion.div>
                   ))}
                 </div>
               )}
@@ -287,7 +310,7 @@ export function ShareActiveView({
             </CardFooter>
           </Card>
 
-          {/* Feature: Connection Stats Panel */}
+          {/* Connection Stats Panel */}
           <Collapsible open={statsOpen} onOpenChange={setStatsOpen}>
             <Card>
               <CardHeader className="py-3">
@@ -295,7 +318,7 @@ export function ShareActiveView({
                   <button className="flex w-full items-center justify-between">
                     <CardTitle className="flex items-center gap-2 text-sm">
                       <BarChart3 className="size-4 text-muted-foreground" />
-                      Connection Stats
+                      Live Stats
                     </CardTitle>
                     <ChevronDown className={`size-4 text-muted-foreground transition-transform ${statsOpen ? "rotate-180" : ""}`} />
                   </button>
@@ -303,20 +326,25 @@ export function ShareActiveView({
               </CardHeader>
               <CollapsibleContent>
                 <CardContent className="pt-0 pb-4">
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="stat-card flex flex-col items-center gap-1 p-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="stat-card flex flex-col items-center gap-1 p-3 rounded-xl">
                       <Activity className="size-4 text-emerald-600 dark:text-emerald-400" />
-                      <span className="text-xs font-medium text-muted-foreground">Peers</span>
+                      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Peers</span>
                       <span className="text-lg font-bold tabular-nums">{activePeerCount}</span>
                     </div>
-                    <div className="stat-card flex flex-col items-center gap-1 p-3">
+                    <div className="stat-card flex flex-col items-center gap-1 p-3 rounded-xl">
+                      <Zap className="size-4 text-yellow-500 dark:text-yellow-400" />
+                      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Bitrate</span>
+                      <span className="text-sm font-bold tabular-nums">{formatBitrate(currentBitrate)}</span>
+                    </div>
+                    <div className="stat-card flex flex-col items-center gap-1 p-3 rounded-xl">
                       <Monitor className="size-4 text-teal-600 dark:text-teal-400" />
-                      <span className="text-xs font-medium text-muted-foreground">Resolution</span>
+                      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Resolution</span>
                       <span className="text-xs font-bold tabular-nums leading-5">{streamResolution}</span>
                     </div>
-                    <div className="stat-card flex flex-col items-center gap-1 p-3">
-                      <BarChart3 className="size-4 text-blue-600 dark:text-blue-400" />
-                      <span className="text-xs font-medium text-muted-foreground">Est. Data</span>
+                    <div className="stat-card flex flex-col items-center gap-1 p-3 rounded-xl">
+                      <HardDrive className="size-4 text-blue-500 dark:text-blue-400" />
+                      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Data Sent</span>
                       <span className="text-xs font-bold tabular-nums leading-5">{formatBytes(estimatedDataTransferred)}</span>
                     </div>
                   </div>

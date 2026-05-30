@@ -1,9 +1,10 @@
 "use client";
 
 // ─── WatchView ───────────────────────────────────────────────────────────
-// Active viewing screen showing the remote stream with playback controls.
+// Active viewing screen with playback controls and emoji reactions.
 
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -17,9 +18,11 @@ import {
   VolumeX,
   Wifi,
   WifiOff,
+  SmilePlus,
+  Gauge,
 } from "lucide-react";
 
-import { pageVariants } from "./types";
+import { pageVariants, REACTION_EMOJIS, formatBitrate } from "./types";
 
 interface WatchViewProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -37,6 +40,7 @@ interface WatchViewProps {
   onTogglePiP: () => void;
   onToggleFullscreen: () => void;
   onLeaveRoom: () => void;
+  onSendReaction: (emoji: string) => void;
 }
 
 export function WatchView({
@@ -55,7 +59,9 @@ export function WatchView({
   onTogglePiP,
   onToggleFullscreen,
   onLeaveRoom,
+  onSendReaction,
 }: WatchViewProps) {
+  const [showReactions, setShowReactions] = useState(false);
   const qualityClass = connectionQuality === "good" ? "quality-good" : connectionQuality === "fair" ? "quality-fair" : "quality-poor";
 
   return (
@@ -68,7 +74,7 @@ export function WatchView({
       transition={{ duration: 0.3 }}
       className="flex w-full flex-col px-4 py-4"
     >
-      {/* Viewer controls bar with frosted glass effect */}
+      {/* Top Controls Bar */}
       <div className="control-bar mb-3 flex items-center justify-between rounded-xl p-2">
         <div className="flex items-center gap-2">
           <Button
@@ -85,7 +91,7 @@ export function WatchView({
             {connectionStatus === "connected" ? "Connected" : "Connecting..."}
           </Badge>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {/* Connection quality */}
           <Badge
             variant={
@@ -105,12 +111,23 @@ export function WatchView({
             {connectionQuality.charAt(0).toUpperCase() + connectionQuality.slice(1)}
           </Badge>
 
+          {/* Latency */}
+          {latency > 0 && (
+            <Badge variant="outline" className="gap-1 font-mono text-[10px]">
+              <Gauge className="size-3" />
+              {latency}ms
+            </Badge>
+          )}
+
+          <div className="mx-1 h-4 w-px bg-border/50" />
+
           {/* Volume */}
           <Button
             variant="ghost"
             size="icon"
             onClick={onToggleMute}
             title={isMuted ? "Unmute" : "Mute"}
+            className="size-8"
           >
             {isMuted ? (
               <VolumeX className="size-4" />
@@ -126,6 +143,7 @@ export function WatchView({
               size="icon"
               onClick={onTogglePiP}
               title="Picture-in-Picture"
+              className="size-8"
             >
               <PictureInPicture2 className="size-4" />
             </Button>
@@ -137,6 +155,7 @@ export function WatchView({
             size="icon"
             onClick={onToggleFullscreen}
             title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+            className="size-8"
           >
             {isFullscreen ? (
               <Minimize className="size-4" />
@@ -147,15 +166,17 @@ export function WatchView({
         </div>
       </div>
 
-      {/* Video container */}
+      {/* Video Container */}
       <div
         ref={containerRef}
-        className="flex flex-1 items-center justify-center overflow-hidden rounded-xl border bg-black"
-        style={{ minHeight: "60vh" }}
+        className="flex flex-1 items-center justify-center overflow-hidden rounded-xl border bg-black shadow-inner"
+        style={{ minHeight: "55vh" }}
       >
         {error ? (
           <div className="flex flex-col items-center gap-4 p-8 text-center">
-            <AlertCircle className="size-12 text-destructive" />
+            <div className="flex size-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-950">
+              <AlertCircle className="size-8 text-red-500" />
+            </div>
             <p className="text-lg font-medium text-destructive">{error}</p>
             <Button variant="outline" onClick={onLeaveRoom}>
               <ArrowLeft className="size-4" />
@@ -164,23 +185,22 @@ export function WatchView({
           </div>
         ) : connectionStatus !== "connected" ? (
           <div className="flex flex-col items-center gap-4 p-8 text-center">
-            {/* Scanning rings animation */}
-            <div className="relative flex size-12 items-center justify-center">
+            <div className="relative flex size-16 items-center justify-center">
               <span className="absolute inset-0 animate-ping rounded-full bg-emerald-500/20" />
-              <span className="absolute inset-2 animate-pulse rounded-full border-2 border-dashed border-emerald-400/30" />
-              <span className="absolute inset-4 animate-pulse rounded-full border-2 border-dashed border-emerald-400/20" style={{ animationDelay: "0.5s" }} />
-              <span className="absolute inset-6 animate-pulse rounded-full border-2 border-dashed border-emerald-400/10" style={{ animationDelay: "1s" }} />
-              <Wifi className="size-6 text-emerald-500" />
+              <span className="absolute inset-3 animate-pulse rounded-full border-2 border-dashed border-emerald-400/30" />
+              <span className="absolute inset-6 animate-pulse rounded-full border-2 border-dashed border-emerald-400/20" style={{ animationDelay: "0.5s" }} />
+              <span className="absolute inset-9 animate-pulse rounded-full border-2 border-dashed border-emerald-400/10" style={{ animationDelay: "1s" }} />
+              <Wifi className="size-7 text-emerald-500" />
             </div>
             <p className="text-lg font-medium text-muted-foreground">
               {waitingApproval ? "Waiting for host approval..." : "Connecting to stream..."}
             </p>
-            <p className="text-sm text-muted-foreground/70">
+            <p className="text-sm text-muted-foreground/60">
               {waitingApproval
                 ? "The host will need to approve your connection"
                 : "Please wait while the host sets up the connection"}
             </p>
-            <Button variant="outline" onClick={onLeaveRoom} className="mt-4">
+            <Button variant="outline" onClick={onLeaveRoom} className="mt-2">
               Cancel
             </Button>
           </div>
@@ -195,29 +215,66 @@ export function WatchView({
         )}
       </div>
 
-      {/* Room info bar */}
-      <div className="control-bar mt-3 flex items-center justify-center gap-4 rounded-xl px-4 py-2 text-sm text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <Monitor className="size-4" />
-          <span>
-            Room{" "}
-            <span className="font-mono font-bold text-foreground">
-              {roomId}
+      {/* Bottom Bar: Room Info + Reactions */}
+      <div className="mt-3 flex items-center justify-between">
+        {/* Room info */}
+        <div className="control-bar flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-muted-foreground">
+          <div className="flex items-center gap-1.5">
+            <Monitor className="size-3.5" />
+            <span>
+              Room{" "}
+              <span className="font-mono font-bold text-foreground">
+                {roomId}
+              </span>
             </span>
-          </span>
-        </div>
-        <div className="h-4 w-px bg-border" />
-        <div className="flex items-center gap-1.5">
-          <Wifi className="size-3" />
-          <span className={`${qualityClass} text-xs font-medium`}>
-            {connectionQuality.charAt(0).toUpperCase() + connectionQuality.slice(1)}
-          </span>
-          {latency > 0 && (
-            <span className="text-xs text-muted-foreground">
-              · {latency}ms
+          </div>
+          <div className="h-3.5 w-px bg-border/50" />
+          <div className="flex items-center gap-1">
+            <Wifi className="size-3" />
+            <span className={`${qualityClass} text-xs font-medium`}>
+              {connectionQuality.charAt(0).toUpperCase() + connectionQuality.slice(1)}
             </span>
-          )}
+          </div>
         </div>
+
+        {/* Emoji Reactions */}
+        {connectionStatus === "connected" && (
+          <div className="relative">
+            <AnimatePresence>
+              {showReactions && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8, y: 8 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.8, y: 8 }}
+                  transition={{ duration: 0.2 }}
+                  className="absolute bottom-full right-0 mb-2 flex gap-1 rounded-xl border bg-background/95 p-2 shadow-lg backdrop-blur-sm"
+                >
+                  {REACTION_EMOJIS.map((emoji) => (
+                    <button
+                      key={emoji}
+                      onClick={() => {
+                        onSendReaction(emoji);
+                        setShowReactions(false);
+                      }}
+                      className="flex size-9 items-center justify-center rounded-lg text-lg transition-transform hover:scale-125 hover:bg-muted active:scale-95"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowReactions(!showReactions)}
+              className="size-9"
+              title="Send reaction"
+            >
+              <SmilePlus className="size-4" />
+            </Button>
+          </div>
+        )}
       </div>
     </motion.div>
   );

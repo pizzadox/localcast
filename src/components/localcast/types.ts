@@ -13,6 +13,34 @@ export interface ViewerInfo {
   approved: boolean;
 }
 
+export interface ChatMessage {
+  id: string;
+  roomId: string;
+  message: string;
+  senderName: string;
+  senderType: "host" | "viewer";
+  senderId: string;
+  timestamp: number;
+}
+
+export interface Reaction {
+  id: string;
+  roomId: string;
+  emoji: string;
+  viewerId: string;
+  timestamp: number;
+}
+
+export type QualityPreset = "high" | "medium" | "low";
+
+export interface QualityConfig {
+  label: string;
+  width: { ideal: number };
+  height: { ideal: number };
+  frameRate: { ideal: number };
+  bitrate: number;
+}
+
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 export const ICE_CONFIG: RTCConfiguration = {
@@ -21,6 +49,32 @@ export const ICE_CONFIG: RTCConfiguration = {
     { urls: "stun:stun1.l.google.com:19302" },
   ],
 };
+
+export const QUALITY_PRESETS: Record<QualityPreset, QualityConfig> = {
+  high: {
+    label: "1080p",
+    width: { ideal: 1920 },
+    height: { ideal: 1080 },
+    frameRate: { ideal: 30 },
+    bitrate: 5_000_000,
+  },
+  medium: {
+    label: "720p",
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+    frameRate: { ideal: 30 },
+    bitrate: 2_500_000,
+  },
+  low: {
+    label: "480p",
+    width: { ideal: 854 },
+    height: { ideal: 480 },
+    frameRate: { ideal: 24 },
+    bitrate: 1_000_000,
+  },
+};
+
+export const REACTION_EMOJIS = ["👍", "👎", "❤️", "😂", "🎉", "👏", "🔥"];
 
 // ─── Animation Variants ──────────────────────────────────────────────────────
 
@@ -70,4 +124,15 @@ export function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+export function formatBitrate(bps: number): string {
+  if (bps < 1000) return `${bps} bps`;
+  if (bps < 1_000_000) return `${(bps / 1000).toFixed(0)} Kbps`;
+  return `${(bps / 1_000_000).toFixed(1)} Mbps`;
+}
+
+let msgCounter = 0;
+export function generateId(): string {
+  return `msg_${Date.now()}_${++msgCounter}`;
 }

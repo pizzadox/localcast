@@ -27,6 +27,7 @@ import {
   Shield,
   Timer,
   HelpCircle,
+  MessageSquare,
 } from "lucide-react";
 
 import type { View } from "@/components/localcast/types";
@@ -37,6 +38,7 @@ import { ShareSetupView } from "@/components/localcast/share-setup-view";
 import { ShareActiveView } from "@/components/localcast/share-active-view";
 import { JoinView } from "@/components/localcast/join-view";
 import { WatchView } from "@/components/localcast/watch-view";
+import { ChatPanel } from "@/components/localcast/chat-panel";
 import { ShortcutsDialog } from "@/components/localcast/shortcuts-dialog";
 
 // ─── StatusDot Sub-Component ─────────────────────────────────────────────
@@ -60,6 +62,29 @@ function StatusDot({ status }: { status: "disconnected" | "connecting" | "connec
   );
 }
 
+// ─── Floating Reactions ──────────────────────────────────────────────────
+
+function FloatingReactions({ reactions }: { reactions: { emoji: string; id: string }[] }) {
+  return (
+    <div className="pointer-events-none fixed bottom-20 right-6 z-50 flex flex-col-reverse gap-1">
+      <AnimatePresence>
+        {reactions.map((r) => (
+          <motion.div
+            key={r.id}
+            initial={{ opacity: 0, scale: 0.5, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: -30 }}
+            transition={{ duration: 0.4 }}
+            className="text-2xl"
+          >
+            {r.emoji}
+          </motion.div>
+        ))}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 // ─── Main Component ─────────────────────────────────────────────────────
 
 export default function Home() {
@@ -74,6 +99,8 @@ export default function Home() {
     isSharing,
     requireApproval,
     setRequireApproval,
+    qualityPreset,
+    setQualityPreset,
     // Viewer state
     viewerInput,
     setViewerInput,
@@ -90,6 +117,8 @@ export default function Home() {
     setShowQrDialog,
     showShortcutsDialog,
     setShowShortcutsDialog,
+    showChatPanel,
+    setShowChatPanel,
     copied,
     elapsedTime,
     waitingApproval,
@@ -99,7 +128,16 @@ export default function Home() {
     estimatedDataTransferred,
     streamResolution,
     latency,
+    currentBitrate,
     qrUrl,
+    // Chat
+    chatMessages,
+    chatInput,
+    setChatInput,
+    sendChatMessage,
+    unreadCount,
+    // Reactions
+    recentReactions,
     // Refs
     videoRef,
     previewVideoRef,
@@ -115,8 +153,11 @@ export default function Home() {
     toggleFullscreen,
     togglePiP,
     copyRoomCode,
+    sendReaction,
     cleanupAll,
   } = useLocalCast();
+
+  const isSession = isSharing || currentView === "watching";
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -132,7 +173,9 @@ export default function Home() {
             }}
             className="flex items-center gap-2 font-semibold transition-opacity hover:opacity-80"
           >
-            <Monitor className="size-5 text-emerald-600 dark:text-emerald-400" />
+            <div className="flex size-7 items-center justify-center rounded-lg gradient-emerald">
+              <Monitor className="size-4 text-white" />
+            </div>
             <span className="text-gradient text-lg font-bold">LocalCast</span>
           </button>
 
@@ -142,11 +185,10 @@ export default function Home() {
             )}
             {currentView === "share" && isSharing && (
               <>
-                <Badge variant="secondary" className="gap-1.5">
+                <Badge variant="secondary" className="gap-1.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
                   <MonitorUp className="size-3" />
-                  Sharing
+                  Live
                 </Badge>
-                {/* Session Timer */}
                 <Badge
                   variant="outline"
                   className="gap-1 font-mono text-xs tabular-nums"
@@ -157,12 +199,31 @@ export default function Home() {
               </>
             )}
             {currentView === "watching" && (
-              <Badge variant="secondary" className="gap-1.5">
+              <Badge variant="secondary" className="gap-1.5 bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300">
                 <Eye className="size-3" />
                 Watching
               </Badge>
             )}
-            {/* Dark Mode Toggle */}
+            {/* Chat Toggle Button */}
+            {isSession && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="relative size-8"
+                onClick={() => {
+                  setShowChatPanel(!showChatPanel);
+                  // Clear unread when opening
+                }}
+                title={showChatPanel ? "Hide chat (C)" : "Show chat (C)"}
+              >
+                <MessageSquare className="size-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"
@@ -196,6 +257,8 @@ export default function Home() {
               onStartSharing={startSharing}
               requireApproval={requireApproval}
               onToggleApproval={setRequireApproval}
+              qualityPreset={qualityPreset}
+              onQualityChange={setQualityPreset}
               error={error}
               onBack={() => {
                 setCurrentView("home");
@@ -214,6 +277,8 @@ export default function Home() {
               activePeerCount={activePeerCount}
               estimatedDataTransferred={estimatedDataTransferred}
               streamResolution={streamResolution}
+              currentBitrate={currentBitrate}
+              elapsedTime={elapsedTime}
               onCopyRoomCode={copyRoomCode}
               onShowQrDialog={() => setShowQrDialog(true)}
               onApproveViewer={approveViewer}
@@ -264,10 +329,30 @@ export default function Home() {
               onTogglePiP={togglePiP}
               onToggleFullscreen={toggleFullscreen}
               onLeaveRoom={leaveRoom}
+              onSendReaction={sendReaction}
             />
           )}
         </AnimatePresence>
       </main>
+
+      {/* ─── Chat Panel (Slide-in) ──────────────────────────────────────── */}
+      <AnimatePresence>
+        {showChatPanel && isSession && (
+          <ChatPanel
+            messages={chatMessages}
+            input={chatInput}
+            onInputChange={setChatInput}
+            onSend={sendChatMessage}
+            isHost={isSharing}
+            onClose={() => {
+              setShowChatPanel(false);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ─── Floating Reactions ──────────────────────────────────────────── */}
+      {isSharing && <FloatingReactions reactions={recentReactions} />}
 
       {/* ─── Footer with scroll reveal animation ───────────────────────── */}
       <motion.footer
@@ -280,21 +365,26 @@ export default function Home() {
           <div className="flex items-center gap-1.5">
             <Monitor className="size-3" />
             <span className="font-medium">LocalCast</span>
+            <span className="text-muted-foreground/50">v1.0</span>
           </div>
           <div className="hidden items-center gap-1 sm:flex">
             <Shield className="size-3" />
             <span>Peer-to-peer · No data leaves your network</span>
           </div>
-          {/* Keyboard Shortcuts Help Button */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-6"
-            onClick={() => setShowShortcutsDialog(true)}
-            title="Keyboard shortcuts"
-          >
-            <HelpCircle className="size-3.5" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <kbd className="hidden rounded border bg-muted/50 px-1.5 py-0.5 font-mono text-[10px] sm:inline-block">C</kbd>
+            <span className="hidden sm:inline">Chat</span>
+            <span className="text-muted-foreground/30">·</span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-6"
+              onClick={() => setShowShortcutsDialog(true)}
+              title="Keyboard shortcuts"
+            >
+              <HelpCircle className="size-3.5" />
+            </Button>
+          </div>
         </div>
       </motion.footer>
 
@@ -337,26 +427,6 @@ export default function Home() {
         open={showShortcutsDialog}
         onOpenChange={setShowShortcutsDialog}
       />
-
-      {/* ─── Inline Keyframes for Shimmer Effect ───────────────────────── */}
-      <style jsx global>{`
-        @keyframes shimmer {
-          0% {
-            transform: translateX(-100%);
-          }
-          100% {
-            transform: translateX(100%);
-          }
-        }
-        @keyframes spin {
-          from {
-            transform: rotate(0deg);
-          }
-          to {
-            transform: rotate(360deg);
-          }
-        }
-      `}</style>
     </div>
   );
 }

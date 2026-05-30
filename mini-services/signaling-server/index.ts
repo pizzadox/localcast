@@ -58,6 +58,38 @@ function formatTimestamp(date: Date = new Date()): string {
   return date.toISOString()
 }
 
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/** Allowed emoji characters for reactions. */
+const VALID_REACTIONS = new Set(['👍', '👎', '❤️', '😂', '🎉', '👏', '🔥'])
+
+/** Minimum interval (ms) between chat messages for a single socket. */
+const CHAT_RATE_LIMIT_MS = 100
+
+/**
+ * Broadcast current viewer count to ALL participants in a room (host + viewers).
+ */
+function broadcastViewerCount(room: Room): void {
+  const totalViewers = room.viewers.size
+  const approvedViewers = Array.from(room.viewers.values()).filter(
+    (v) => v.approved,
+  ).length
+  const payload = { roomId: room.id, totalViewers, approvedViewers }
+
+  const hostSocket = io.sockets.sockets.get(room.hostId)
+  if (hostSocket) {
+    hostSocket.emit('VIEWER_COUNT_UPDATE', payload)
+  }
+  for (const [viewerId] of room.viewers) {
+    const viewerSocket = io.sockets.sockets.get(viewerId)
+    if (viewerSocket) {
+      viewerSocket.emit('VIEWER_COUNT_UPDATE', payload)
+    }
+  }
+}
+
 /** Build a serialisable room snapshot (converts Map → plain object). */
 function serializeRoom(room: Room) {
   return {
@@ -77,6 +109,9 @@ const rooms = new Map<string, Room>()
 
 /** Reverse index: socketId → roomId  (for fast lookup on disconnect). */
 const socketToRoom = new Map<string, string>()
+
+/** Per-socket chat rate-limit tracking: socketId → lastChatTimestamp. */
+const chatRateLimits = new Map<string, number>()
 
 // ---------------------------------------------------------------------------
 // HTTP & Socket.IO server
@@ -254,6 +289,9 @@ io.on('connection', (socket: Socket) => {
           `[${formatTimestamp()}] JOIN     room=${roomId} viewer=${socket.id} approved=${viewerInfo.approved}`,
         )
 
+        // Broadcast updated viewer count to all room participants
+        broadcastViewerCount(room)
+
         callback?.({ success: true, roomId })
       } catch (err) {
         console.error(
@@ -339,6 +377,9 @@ io.on('connection', (socket: Socket) => {
 
         room.viewers.delete(viewerId)
         socketToRoom.delete(viewerId)
+
+        // Broadcast updated viewer count
+        broadcastViewerCount(room)
 
         console.log(
           `[${formatTimestamp()}] KICK     room=${room.id} viewer=${viewerId} by host=${socket.id}`,
@@ -524,6 +565,9 @@ io.on('connection', (socket: Socket) => {
         room.viewers.delete(viewerId)
         socketToRoom.delete(viewerId)
 
+        // Broadcast updated viewer count
+        broadcastViewerCount(room)
+
         console.log(
           `[${formatTimestamp()}] DENY     room=${room.id} viewer=${viewerId}`,
         )
@@ -540,11 +584,153 @@ io.on('connection', (socket: Socket) => {
   )
 
   // -----------------------------------------------------------------------
-  // 9. PING / PONG  (application-level keepalive)
+  // 9. PING / PONG  (application-level keepalive — works for host & viewer)
   // -----------------------------------------------------------------------
-  socket.on('PING', () => {
-    socket.emit('PONG', { timestamp: Date.now() })
+  socket.on('PING', (callback?: (response: unknown) => void) => {
+    const timestamp = Date.now()
+    socket.emit('PONG', { timestamp })
+    callback?.({ timestamp })
   })
+
+  // -----------------------------------------------------------------------
+  // 10. CHAT_MESSAGE
+  // -----------------------------------------------------------------------
+  socket.on(
+    'CHAT_MESSAGE',
+    (payload: {
+      roomId: string
+      message: string
+      senderName: string
+      senderType: 'host' | 'viewer'
+    }) => {
+      try {
+        const { roomId, message, senderName, senderType } = payload
+
+        if (!roomId || !message || !senderName || !senderType) {
+          console.warn(
+            `[${formatTimestamp()}] WARN     CHAT_MESSAGE from ${socket.id} missing fields`,
+          )
+          return
+        }
+
+        const room = rooms.get(roomId)
+        if (!room) return
+
+        // Verify the sender belongs to this room
+        if (room.hostId !== socket.id && !room.viewers.has(socket.id)) {
+          console.warn(
+            `[${formatTimestamp()}] WARN     CHAT_MESSAGE from ${socket.id} not in room ${roomId}`,
+          )
+          return
+        }
+
+        // Rate-limit: max 1 message per 100ms per socket
+        const now = Date.now()
+        const lastSent = chatRateLimits.get(socket.id) ?? 0
+        if (now - lastSent < CHAT_RATE_LIMIT_MS) {
+          socket.emit('ERROR', {
+            message: 'You are sending messages too quickly.',
+            code: 'RATE_LIMITED',
+          })
+          return
+        }
+        chatRateLimits.set(socket.id, now)
+
+        const chatPayload = {
+          roomId,
+          message,
+          senderName,
+          senderType,
+          senderId: socket.id,
+          timestamp: now,
+        }
+
+        // Broadcast to ALL participants (host + all viewers)
+        const hostSocket = io.sockets.sockets.get(room.hostId)
+        if (hostSocket) {
+          hostSocket.emit('CHAT_MESSAGE', chatPayload)
+        }
+        for (const [viewerId] of room.viewers) {
+          const viewerSocket = io.sockets.sockets.get(viewerId)
+          if (viewerSocket) {
+            viewerSocket.emit('CHAT_MESSAGE', chatPayload)
+          }
+        }
+
+        console.log(
+          `[${formatTimestamp()}] CHAT     room=${roomId} sender=${socket.id} type=${senderType} msg=${message.slice(0, 50)}`,
+        )
+      } catch (err) {
+        console.error(
+          `[${formatTimestamp()}] ERROR    CHAT_MESSAGE socket=${socket.id}`,
+          err,
+        )
+      }
+    },
+  )
+
+  // -----------------------------------------------------------------------
+  // 11. REACTION
+  // -----------------------------------------------------------------------
+  socket.on(
+    'REACTION',
+    (payload: { roomId: string; emoji: string; viewerId?: string }) => {
+      try {
+        const { roomId, emoji, viewerId } = payload
+
+        if (!roomId || !emoji) {
+          console.warn(
+            `[${formatTimestamp()}] WARN     REACTION from ${socket.id} missing fields`,
+          )
+          return
+        }
+
+        // Validate emoji against whitelist
+        if (!VALID_REACTIONS.has(emoji)) {
+          console.warn(
+            `[${formatTimestamp()}] WARN     REACTION from ${socket.id} invalid emoji=${emoji}`,
+          )
+          socket.emit('ERROR', {
+            message: 'Unsupported emoji reaction.',
+            code: 'INVALID_REACTION',
+          })
+          return
+        }
+
+        const room = rooms.get(roomId)
+        if (!room) return
+
+        // Verify the sender is a viewer in this room
+        const effectiveViewerId = viewerId || socket.id
+        if (!room.viewers.has(effectiveViewerId)) {
+          console.warn(
+            `[${formatTimestamp()}] WARN     REACTION from ${socket.id} not a viewer in room ${roomId}`,
+          )
+          return
+        }
+
+        // Forward reaction to the HOST only
+        const hostSocket = io.sockets.sockets.get(room.hostId)
+        if (hostSocket) {
+          hostSocket.emit('REACTION', {
+            roomId,
+            emoji,
+            viewerId: effectiveViewerId,
+            timestamp: Date.now(),
+          })
+        }
+
+        console.log(
+          `[${formatTimestamp()}] REACTION room=${roomId} viewer=${effectiveViewerId} emoji=${emoji}`,
+        )
+      } catch (err) {
+        console.error(
+          `[${formatTimestamp()}] ERROR    REACTION socket=${socket.id}`,
+          err,
+        )
+      }
+    },
+  )
 
   // -----------------------------------------------------------------------
   // DISCONNECT  (cleanup)
@@ -555,11 +741,16 @@ io.on('connection', (socket: Socket) => {
       socketToRoom.delete(socket.id)
 
       if (!roomId) {
+        // Clean up rate-limit entry if present
+        chatRateLimits.delete(socket.id)
         console.log(
           `[${formatTimestamp()}] LEAVE    socket=${socket.id} (no room) reason=${reason}`,
         )
         return
       }
+
+      // Clean up rate-limit entry for disconnected socket
+      chatRateLimits.delete(socket.id)
 
       const room = rooms.get(roomId)
       if (!room) return
@@ -592,6 +783,9 @@ io.on('connection', (socket: Socket) => {
         if (hostSocket) {
           hostSocket.emit('VIEWER_DISCONNECTED', { viewerId: socket.id })
         }
+
+        // Broadcast updated viewer count
+        broadcastViewerCount(room)
       }
     } catch (err) {
       console.error(
