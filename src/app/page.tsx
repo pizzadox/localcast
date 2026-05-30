@@ -276,7 +276,7 @@ export default function Home() {
           animation: "header-shift 8s ease-in-out infinite",
         }}
       >
-        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
+        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-3 sm:px-4">
           <button
             onClick={() => {
               if (currentView !== "home") {
@@ -292,10 +292,10 @@ export default function Home() {
             <span className="text-gradient text-lg font-bold">LocalCast</span>
           </button>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3">
             {/* Name Editor (during active sessions) */}
             {isSession && (
-              <div className="flex items-center gap-1.5 rounded-lg border bg-muted/30 px-2 py-1">
+              <div className="hidden sm:flex items-center gap-1.5 rounded-lg border bg-muted/30 px-2 py-1">
                 <User className="size-3 text-muted-foreground" />
                 <input
                   type="text"
@@ -312,13 +312,13 @@ export default function Home() {
             )}
             {currentView === "share" && isSharing && (
               <>
-                <Badge variant="secondary" className="gap-1.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                <Badge variant="secondary" className="gap-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 sm:gap-1.5">
                   <MonitorUp className="size-3" />
-                  Live
+                  <span className="hidden xs:inline">Live</span>
                 </Badge>
                 <Badge
                   variant="outline"
-                  className="gap-1 font-mono text-xs tabular-nums"
+                  className="gap-0.5 font-mono text-[10px] sm:gap-1 sm:text-xs tabular-nums"
                 >
                   <Timer className="size-3" />
                   {formatElapsed(elapsedTime)}
@@ -326,17 +326,17 @@ export default function Home() {
               </>
             )}
             {currentView === "watching" && (
-              <Badge variant="secondary" className="gap-1.5 bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300">
+              <Badge variant="secondary" className="gap-1 bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300 sm:gap-1.5">
                 <Eye className="size-3" />
                 Watching
               </Badge>
             )}
-            {/* Connection Tips Button (during viewing when quality is poor) */}
+            {/* Connection Tips Button (during viewing when quality is poor) - hidden on mobile */}
             {currentView === "watching" && connectionQuality === "poor" && (
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-8 text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950"
+                className="hidden sm:inline-flex size-8 text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950"
                 onClick={() => {
                   toast.warning("Connection Tips", {
                     description: "• Try refreshing the page\n• Make sure both devices are on the same network\n• Check if a firewall is blocking connections\n• Try reducing other network usage",
@@ -592,7 +592,7 @@ export default function Home() {
           <div className="flex items-center gap-1.5">
             <Monitor className="size-3" />
             <span className="font-medium">LocalCast</span>
-            <span className="text-muted-foreground/50">v1.0</span>
+            <span className="text-muted-foreground/50">v1.0.1</span>
           </div>
           <div className="hidden items-center gap-1 sm:flex">
             <Shield className="size-3" />

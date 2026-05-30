@@ -113,7 +113,7 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
       animate="animate"
       exit="exit"
       transition={{ duration: 0.3 }}
-      className="w-full max-w-5xl px-4 py-6 sm:py-10"
+      className="w-full max-w-5xl px-3 py-4 sm:px-4 sm:py-6 md:py-10"
     >
       {/* ── Hero Section ──────────────────────────────────────────────────── */}
       <div className="gradient-shift relative mb-12 overflow-hidden rounded-2xl sm:rounded-[2rem]">
@@ -155,7 +155,7 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
         {/* Inner border glow */}
         <div className="absolute inset-0 rounded-2xl sm:rounded-[2rem] border border-white/20 dark:border-white/5 pointer-events-none" />
 
-        <div className="relative px-6 py-12 text-center sm:py-16 sm:px-12">
+        <div className="relative px-4 py-8 text-center sm:py-12 sm:px-12">
           <motion.div
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
@@ -163,15 +163,15 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
             className="relative"
           >
             {/* Logo with float animation */}
-            <div className="mx-auto mb-6 flex size-20 items-center justify-center rounded-3xl gradient-emerald shadow-xl shadow-emerald-500/30 sm:size-24 float-animation">
-              <Monitor className="size-10 text-white sm:size-12" />
+            <div className="mx-auto mb-4 sm:mb-6 flex size-16 sm:size-20 md:size-24 items-center justify-center rounded-2xl sm:rounded-3xl gradient-emerald shadow-xl shadow-emerald-500/30 float-animation">
+              <Monitor className="size-8 text-white sm:size-10 md:size-12" />
             </div>
 
             <motion.h1
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1, duration: 0.5 }}
-              className="text-4xl font-black tracking-tight sm:text-6xl text-shadow-sm"
+              className="text-3xl font-black tracking-tight sm:text-4xl md:text-6xl text-shadow-sm"
             >
               <span className="text-gradient-animate text-shadow-emerald glow-text">LocalCast</span>
             </motion.h1>
@@ -179,7 +179,7 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.2, duration: 0.4 }}
-              className="mt-3 max-w-lg mx-auto text-lg text-muted-foreground"
+              className="mt-2 sm:mt-3 max-w-lg mx-auto text-base sm:text-lg text-muted-foreground"
             >
               <TypingText text="Share your screen instantly over your local network." delay={40} />
             </motion.p>
@@ -201,7 +201,7 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
             >
               <Sparkles className="size-3 text-emerald-600 dark:text-emerald-400" />
               <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-                Version 1.0
+                Version 1.0.1
               </span>
             </motion.div>
 

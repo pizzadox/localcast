@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.1] - 2025-06-02
+
+### Fixed
+- **Connection speed test thresholds**: Adjusted latency categories to account for proxy overhead. Excellent < 50ms, Good < 100ms, Fair < 200ms (was 30/60/120ms). A 306ms ping now correctly shows "Poor" instead of an overly harsh classification.
+- **Duplicate icons on Stream Quality**: Removed duplicate icon container in the quality preset selector on the share setup screen.
+
+### Changed
+- **Mobile responsive design**: Comprehensive mobile adaptation across all views:
+  - Header: tighter spacing on mobile, display name editor hidden on small screens, timer badge compacted
+  - WatchView: control bars use flex-wrap on mobile, health bar percentage hidden on small screens, video container uses adaptive min-height (40vh–55vh)
+  - ShareSetupView: reduced padding and gap spacing on mobile, share mode/quality grids compacted
+  - ShareActiveView: room code card stacks vertically on mobile, preview buttons wrap
+  - HomeView: smaller hero logo/text on mobile, tighter padding
+
+---
+
 ## [1.0.0] - 2025-05-30
 
 ### Added

@@ -117,7 +117,7 @@ export function ShareSetupView({
       animate="animate"
       exit="exit"
       transition={{ duration: 0.3 }}
-      className="w-full max-w-lg px-4"
+      className="w-full max-w-lg px-3 sm:px-4"
     >
       <Card className="glass-card overflow-hidden border-2 shadow-lg">
         {/* Top gradient bar */}
@@ -151,12 +151,12 @@ export function ShareSetupView({
           )}
 
           {/* Share Mode Selector */}
-          <div className="rounded-xl border bg-muted/20 p-4">
-            <div className="flex items-center gap-2 mb-4">
+          <div className="rounded-xl border bg-muted/20 p-3 sm:p-4">
+            <div className="flex items-center gap-2 mb-3 sm:mb-4">
               <LayoutGrid className="size-4 text-emerald-600 dark:text-emerald-400" />
               <span className="text-sm font-semibold">Share Mode</span>
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
               {(Object.entries(SHARE_MODE_CONFIG) as [ShareMode, typeof SHARE_MODE_CONFIG.screen][]).map(
                 ([key, config]) => {
                   const Icon = shareModeIcons[key];
@@ -166,7 +166,7 @@ export function ShareSetupView({
                       key={key}
                       whileTap={{ scale: 0.97 }}
                       onClick={() => onShareModeChange(key)}
-                      className={`quality-card relative flex flex-col items-center gap-2 rounded-xl border-2 p-3 ${
+                      className={`quality-card relative flex flex-col items-center gap-1.5 sm:gap-2 rounded-xl border-2 p-2 sm:p-3 ${
                         isSelected
                           ? "selected border-emerald-500"
                           : "border-transparent bg-background text-muted-foreground hover:border-border hover:bg-muted/50"
@@ -205,12 +205,12 @@ export function ShareSetupView({
           <div className="section-divider" />
 
           {/* Quality Presets */}
-          <div className="rounded-xl border bg-muted/20 p-4">
-            <div className="flex items-center gap-2 mb-4">
+          <div className="rounded-xl border bg-muted/20 p-3 sm:p-4">
+            <div className="flex items-center gap-2 mb-3 sm:mb-4">
               <Gauge className="size-4 text-emerald-600 dark:text-emerald-400" />
               <span className="text-sm font-semibold">Stream Quality</span>
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
               {(Object.entries(QUALITY_PRESETS) as [QualityPreset, typeof QUALITY_PRESETS.high][]).map(
                 ([key, config]) => {
                   const Icon = qualityIcons[key];
@@ -220,7 +220,7 @@ export function ShareSetupView({
                       key={key}
                       whileTap={{ scale: 0.97 }}
                       onClick={() => onQualityChange(key)}
-                      className={`quality-card relative flex flex-col items-center gap-2 rounded-xl border-2 p-3 micro-interaction ${
+                      className={`quality-card relative flex flex-col items-center gap-1.5 sm:gap-2 rounded-xl border-2 p-2 sm:p-3 micro-interaction ${
                         isSelected
                           ? "selected border-emerald-500"
                           : "border-transparent bg-background text-muted-foreground hover:border-border hover:bg-muted/50"
@@ -245,16 +245,9 @@ export function ShareSetupView({
                           </div>
                         </div>
                       </div>
-                      <div className={`flex size-8 items-center justify-center rounded-lg transition-all duration-200 ${
-                        isSelected
-                          ? "bg-emerald-100 dark:bg-emerald-950/80"
-                          : "bg-muted/50"
-                      }`}>
-                        <Icon className={`size-4 ${qualityColors[key]}`} />
-                      </div>
 
                       {/* Quality label */}
-                      <span className={`text-lg font-bold leading-none ${isSelected ? "text-emerald-600 dark:text-emerald-400" : ""}`}>
+                      <span className={`text-base sm:text-lg font-bold leading-none ${isSelected ? "text-emerald-600 dark:text-emerald-400" : ""}`}>
                         {config.label}
                       </span>
 
@@ -294,7 +287,7 @@ export function ShareSetupView({
           <div className="section-divider" />
 
           {/* Max Viewers */}
-          <div className="rounded-xl border bg-muted/20 p-4">
+          <div className="rounded-xl border bg-muted/20 p-3 sm:p-4">
             <div className="flex items-center gap-2 mb-3">
               <Users className="size-4 text-emerald-600 dark:text-emerald-400" />
               <span className="text-sm font-semibold">Max Viewers</span>
@@ -325,12 +318,12 @@ export function ShareSetupView({
           <div className="section-divider" />
 
           {/* Session Theme */}
-          <div className="rounded-xl border bg-muted/20 p-4">
+          <div className="rounded-xl border bg-muted/20 p-3 sm:p-4">
             <div className="flex items-center gap-2 mb-3">
               <Palette className="size-4 text-emerald-600 dark:text-emerald-400" />
               <span className="text-sm font-semibold">Session Theme</span>
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-2 sm:gap-3">
               {(Object.entries(SESSION_THEMES) as [SessionTheme, typeof SESSION_THEMES.default][]).map(([key, config]) => {
                 const isSelected = roomTheme === key;
                 return (
@@ -365,7 +358,7 @@ export function ShareSetupView({
           <div className="section-divider" />
 
           {/* Connection Speed Test */}
-          <div className="rounded-xl border bg-muted/20 p-4">
+          <div className="rounded-xl border bg-muted/20 p-3 sm:p-4">
             <div className="flex items-center gap-2 mb-3">
               <Zap className="size-4 text-emerald-600 dark:text-emerald-400" />
               <span className="text-sm font-semibold">Connection Test</span>
@@ -413,7 +406,7 @@ export function ShareSetupView({
           <div className="section-divider" />
 
           {/* Password Protection toggle */}
-          <div className="rounded-xl border bg-muted/20 p-4 transition-all duration-300 hover:bg-muted/30 toggle-smooth">
+          <div className="rounded-xl border bg-muted/20 p-3 sm:p-4 transition-all duration-300 hover:bg-muted/30 toggle-smooth">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex size-9 items-center justify-center rounded-lg bg-rose-100 text-rose-600 dark:bg-rose-950 dark:text-rose-400 transition-transform duration-200">
@@ -468,7 +461,7 @@ export function ShareSetupView({
           <div className="section-divider" />
 
           {/* Approval toggle */}
-          <div className={`approval-glow flex items-center justify-between rounded-xl border bg-muted/20 p-4 transition-all duration-300 hover:bg-muted/30 toggle-smooth ripple-effect ${requireApproval ? "active" : ""}`}>
+          <div className={`approval-glow flex items-center justify-between rounded-xl border bg-muted/20 p-3 sm:p-4 transition-all duration-300 hover:bg-muted/30 toggle-smooth ripple-effect ${requireApproval ? "active" : ""}`}>
             <div className="flex items-center gap-3">
               <div className={`flex size-9 items-center justify-center rounded-lg transition-all duration-300 ${requireApproval ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400" : "bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-400"}`}>
                 <Shield className="size-4" />

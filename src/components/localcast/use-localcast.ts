@@ -622,9 +622,9 @@ export function useLocalCast(): UseLocalCastReturn {
       if (pings.length > 0) {
         const avgLatency = Math.round(pings.reduce((a, b) => a + b, 0) / pings.length);
         let quality: SpeedTestQuality;
-        if (avgLatency < 30) quality = "excellent";
-        else if (avgLatency < 60) quality = "good";
-        else if (avgLatency < 120) quality = "fair";
+        if (avgLatency < 50) quality = "excellent";
+        else if (avgLatency < 100) quality = "good";
+        else if (avgLatency < 200) quality = "fair";
         else quality = "poor";
 
         setSpeedTestResult({ latencyMs: avgLatency, quality, timestamp: Date.now() });

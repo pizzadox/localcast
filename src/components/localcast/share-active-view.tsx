@@ -188,7 +188,7 @@ export function ShareActiveView({
       animate="animate"
       exit="exit"
       transition={{ duration: 0.3 }}
-      className="w-full max-w-4xl px-4 py-6"
+      className="w-full max-w-4xl px-3 py-4 sm:px-4 sm:py-6"
     >
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Left Column: Room Info + Controls */}
@@ -209,8 +209,8 @@ export function ShareActiveView({
             <CardContent className="space-y-4">
               {/* Animated connection line decoration */}
               <div className="connection-pulse-line rounded-full mx-auto max-w-[60%]" />
-              <div className="flex items-center gap-3">
-                <div className="flex flex-1 items-center justify-center rounded-xl border-2 border-dashed border-emerald-300/60 bg-emerald-50/50 p-4 transition-colors dark:border-emerald-700/60 dark:bg-emerald-950/30">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <div className="flex flex-1 items-center justify-center rounded-xl border-2 border-dashed border-emerald-300/60 bg-emerald-50/50 p-3 sm:p-4 transition-colors dark:border-emerald-700/60 dark:bg-emerald-950/30">
                   <div className="flex gap-2">
                     {codeChars.map((char, i) => (
                       <motion.span
@@ -226,7 +226,7 @@ export function ShareActiveView({
                     ))}
                   </div>
                 </div>
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-row sm:flex-col gap-2">
                   <Button
                     variant="outline"
                     size="icon"
@@ -259,7 +259,7 @@ export function ShareActiveView({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="mt-1.5 w-full gap-1.5 text-xs font-medium text-emerald-600 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-700 dark:hover:bg-emerald-950 dark:hover:border-emerald-700 dark:hover:text-emerald-300"
+                  className="w-full sm:w-auto sm:mt-1.5 gap-1.5 text-xs font-medium text-emerald-600 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-700 dark:hover:bg-emerald-950 dark:hover:border-emerald-700 dark:hover:text-emerald-300"
                   onClick={() => {
                     const url = `${window.location.origin}?join=${roomId}`;
                     navigator.clipboard?.writeText(url);
@@ -284,33 +284,33 @@ export function ShareActiveView({
                   <Monitor className="size-4 text-muted-foreground" />
                   Stream Preview
                 </CardTitle>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-7 gap-1.5 text-xs"
+                    className="h-7 gap-1 text-[10px] sm:gap-1.5 sm:text-xs"
                     onClick={() => setShowNetworkInfo(!showNetworkInfo)}
                   >
                     <Network className="size-3" />
-                    Network Info
+                    <span className="hidden sm:inline">Network Info</span>
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-7 gap-1.5 text-xs"
+                    className="h-7 gap-1 text-[10px] sm:gap-1.5 sm:text-xs"
                     onClick={() => setShowAnnotationOverlay(!showAnnotationOverlay)}
                   >
                     <Pen className="size-3" />
-                    Whiteboard
+                    <span className="hidden sm:inline">Whiteboard</span>
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-7 gap-1.5 text-xs"
+                    className="h-7 gap-1 text-[10px] sm:gap-1.5 sm:text-xs"
                     onClick={() => setDashboardOpen(true)}
                   >
                     <BarChart3 className="size-3" />
-                    Session Stats
+                    <span className="hidden sm:inline">Session Stats</span>
                   </Button>
                   <Badge variant="outline" className="text-[10px] gap-1 bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/50 dark:text-teal-300 dark:border-teal-800">
                     <Radio className="size-2.5" />

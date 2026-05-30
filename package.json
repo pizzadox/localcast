@@ -1,6 +1,6 @@
 {
   "name": "localcast",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "LAN Screen Sharing — pure browser WebRTC app with unlimited viewers",
   "license": "MIT",
   "private": true,

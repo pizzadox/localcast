@@ -121,21 +121,21 @@ export function WatchView({
       animate="animate"
       exit="exit"
       transition={{ duration: 0.3 }}
-      className="flex w-full flex-col px-4 py-4"
+      className="flex w-full flex-col px-3 py-3 sm:px-4 sm:py-4"
     >
       {/* Top Controls Bar — fades on mouse idle */}
       <div
-        className="frosted-glass control-bar-fade mb-3 flex items-center justify-between rounded-xl p-2 control-bar"
+        className="frosted-glass control-bar-fade mb-3 flex flex-wrap items-center justify-between gap-1.5 rounded-xl p-1.5 sm:flex-nowrap sm:gap-2 sm:p-2 control-bar"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         style={{ opacity: controlsVisible ? 1 : 0 }}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <Button
             variant="ghost"
             size="sm"
             onClick={onLeaveRoom}
-            className="gap-1.5 hover:text-destructive transition-colors"
+            className="gap-1 text-xs sm:gap-1.5 sm:text-sm hover:text-destructive transition-colors"
           >
             <ArrowLeft className="size-4" />
             Leave
@@ -160,11 +160,11 @@ export function WatchView({
             {connectionStatus === "connected" ? "Connected" : connectionStatus === "connecting" ? "Connecting..." : "Disconnected"}
           </Badge>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
           {/* Connection quality */}
           <Badge
             variant="outline"
-            className={`gap-1 ${
+            className={`gap-0.5 sm:gap-1 ${
               connectionQuality === "good"
                 ? "quality-badge-good"
                 : connectionQuality === "fair"
@@ -177,7 +177,7 @@ export function WatchView({
             ) : (
               <Wifi className="size-3" />
             )}
-            {connectionQuality.charAt(0).toUpperCase() + connectionQuality.slice(1)}
+            <span className="hidden sm:inline">{connectionQuality.charAt(0).toUpperCase() + connectionQuality.slice(1)}</span>
           </Badge>
 
           {/* Latency — color-coded */}
@@ -189,14 +189,14 @@ export function WatchView({
           )}
 
           {/* Connection Health Bar */}
-          <div className="flex items-center gap-2" title={`Connection Health: ${healthPercent}% — ${healthLabel}`}>
-            <div className="h-1.5 w-16 rounded-full bg-muted/50 overflow-hidden">
+          <div className="flex items-center gap-1.5 sm:gap-2" title={`Connection Health: ${healthPercent}% — ${healthLabel}`}>
+            <div className="h-1.5 w-12 sm:w-16 rounded-full bg-muted/50 overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all duration-1000 ease-out ${healthColor}`}
                 style={{ width: `${healthPercent}%` }}
               />
             </div>
-            <span className={`text-[9px] font-semibold tabular-nums ${
+            <span className={`hidden sm:inline-block text-[9px] font-semibold tabular-nums ${
               connectionHealthScore > 80 ? "text-emerald-600 dark:text-emerald-400" :
               connectionHealthScore >= 50 ? "text-amber-600 dark:text-amber-400" :
               "text-red-600 dark:text-red-400"
@@ -287,7 +287,7 @@ export function WatchView({
             };
           }
         }}
-        style={{ minHeight: "55vh" }}
+        style={{ minHeight: "clamp(40vh, 55vh, 70vh)" }}
       >
           {error ? (
           <div className="flex flex-col items-center gap-4 p-8 text-center">
@@ -396,7 +396,7 @@ export function WatchView({
       </div>
 
       {/* Bottom Bar: Room Info + Reactions */}
-      <div className="mt-3 flex items-center justify-between">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         {/* Room info */}
         <div className="control-bar flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-muted-foreground">
           <div className="flex items-center gap-1.5">
