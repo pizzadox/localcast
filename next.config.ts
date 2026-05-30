@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   reactStrictMode: false,
+  serverExternalPackages: ['socket.io'],
 };
 
 export default nextConfig;
