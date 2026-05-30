@@ -1,0 +1,662 @@
+import { createServer } from 'http'
+import { Server, Socket } from 'socket.io'
+import crypto from 'crypto'
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface ViewerInfo {
+  id: string
+  deviceName?: string
+  os?: string
+  browser?: string
+  screenWidth?: number
+  screenHeight?: number
+  connectedAt: number
+  approved: boolean
+}
+
+interface RoomSettings {
+  maxViewers: number
+  requireApproval: boolean
+  [key: string]: unknown
+}
+
+interface Room {
+  id: string
+  hostId: string
+  viewers: Map<string, ViewerInfo>
+  createdAt: number
+  settings: RoomSettings
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate a human-friendly, easy-to-type 6-character alphanumeric room ID.
+ *
+ * Uses `crypto.randomBytes(6)` and maps each byte to the uppercase
+ * alphanumeric subset (0-9, A-Z) via `byte % 36`.
+ *
+ * Collisions are astronomically unlikely (36^6 ≈ 2.2 billion) but we
+ * guard against them anyway.
+ */
+function generateRoomId(): string {
+  const bytes = crypto.randomBytes(6)
+  const chars: string[] = []
+  for (const byte of bytes) {
+    const idx = byte % 36
+    chars.push(idx < 10 ? String(idx) : String.fromCharCode(65 + idx - 10))
+  }
+  return chars.join('').toUpperCase()
+}
+
+function formatTimestamp(date: Date = new Date()): string {
+  return date.toISOString()
+}
+
+/** Build a serialisable room snapshot (converts Map → plain object). */
+function serializeRoom(room: Room) {
+  return {
+    id: room.id,
+    hostId: room.hostId,
+    viewers: Object.fromEntries(room.viewers),
+    createdAt: room.createdAt,
+    settings: room.settings,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// In-memory state
+// ---------------------------------------------------------------------------
+
+const rooms = new Map<string, Room>()
+
+/** Reverse index: socketId → roomId  (for fast lookup on disconnect). */
+const socketToRoom = new Map<string, string>()
+
+// ---------------------------------------------------------------------------
+// HTTP & Socket.IO server
+// ---------------------------------------------------------------------------
+
+const PORT = Number(process.env.PORT) || 3003
+
+const httpServer = createServer((_req, res) => {
+  // Health-check / info endpoint for bare HTTP requests
+  res.writeHead(200, { 'Content-Type': 'application/json' })
+  res.end(
+    JSON.stringify({
+      name: 'localcast-signaling-server',
+      version: '1.0.0',
+      activeRooms: rooms.size,
+      uptime: process.uptime(),
+    }),
+  )
+})
+
+const io = new Server(httpServer, {
+  path: '/',
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST'],
+  },
+  pingTimeout: 60_000,
+  pingInterval: 25_000,
+})
+
+// ---------------------------------------------------------------------------
+// Middleware – log every connection
+// ---------------------------------------------------------------------------
+
+io.use((socket, next) => {
+  console.log(`[${formatTimestamp()}] CONNECT  socket=${socket.id}`)
+  next()
+})
+
+// ---------------------------------------------------------------------------
+// Connection handler
+// ---------------------------------------------------------------------------
+
+io.on('connection', (socket: Socket) => {
+  // -----------------------------------------------------------------------
+  // 1. CREATE_ROOM
+  // -----------------------------------------------------------------------
+  socket.on('CREATE_ROOM', (callback?: (response: unknown) => void) => {
+    try {
+      // Prevent double-creation
+      if (socketToRoom.has(socket.id)) {
+        const existingRoomId = socketToRoom.get(socket.id)!
+        console.warn(
+          `[${formatTimestamp()}] WARN     socket=${socket.id} already in room ${existingRoomId}`,
+        )
+        socket.emit('ERROR', {
+          message: 'You are already in a room. Leave before creating a new one.',
+          code: 'ALREADY_IN_ROOM',
+        })
+        callback?.({ success: false, error: 'Already in a room' })
+        return
+      }
+
+      let roomId: string
+      // Avoid collisions (extremely unlikely with 36^6 ≈ 2.2 B possibilities)
+      do {
+        roomId = generateRoomId()
+      } while (rooms.has(roomId))
+
+      const room: Room = {
+        id: roomId,
+        hostId: socket.id,
+        viewers: new Map(),
+        createdAt: Date.now(),
+        settings: {
+          maxViewers: 0, // 0 = unlimited
+          requireApproval: false,
+        },
+      }
+
+      rooms.set(roomId, room)
+      socketToRoom.set(socket.id, roomId)
+
+      const roomInfo = serializeRoom(room)
+      socket.emit('ROOM_CREATED', { roomId, roomInfo })
+
+      console.log(
+        `[${formatTimestamp()}] ROOM+    room=${roomId} host=${socket.id}`,
+      )
+
+      callback?.({ success: true, roomId })
+    } catch (err) {
+      console.error(
+        `[${formatTimestamp()}] ERROR    CREATE_ROOM socket=${socket.id}`,
+        err,
+      )
+      callback?.({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  // -----------------------------------------------------------------------
+  // 2. JOIN_ROOM
+  // -----------------------------------------------------------------------
+  socket.on(
+    'JOIN_ROOM',
+    (payload: { roomId: string }, callback?: (response: unknown) => void) => {
+      try {
+        const { roomId } = payload
+        const room = rooms.get(roomId)
+
+        if (!room) {
+          socket.emit('ROOM_NOT_FOUND', { roomId })
+          console.log(
+            `[${formatTimestamp()}] DENIED   socket=${socket.id} room=${roomId} (not found)`,
+          )
+          callback?.({ success: false, error: 'Room not found' })
+          return
+        }
+
+        // Prevent joining own room
+        if (room.hostId === socket.id) {
+          socket.emit('ERROR', {
+            message: 'Host cannot join their own room as a viewer.',
+            code: 'SELF_JOIN',
+          })
+          callback?.({ success: false, error: 'Cannot join own room' })
+          return
+        }
+
+        // Prevent double-join
+        if (room.viewers.has(socket.id)) {
+          callback?.({ success: true, roomId })
+          return
+        }
+
+        // Max viewer check (0 = unlimited)
+        if (
+          room.settings.maxViewers > 0 &&
+          room.viewers.size >= room.settings.maxViewers
+        ) {
+          socket.emit('ERROR', {
+            message: 'Room is full.',
+            code: 'ROOM_FULL',
+          })
+          callback?.({ success: false, error: 'Room is full' })
+          return
+        }
+
+        const viewerInfo: ViewerInfo = {
+          id: socket.id,
+          connectedAt: Date.now(),
+          approved: !room.settings.requireApproval,
+        }
+
+        room.viewers.set(socket.id, viewerInfo)
+        socketToRoom.set(socket.id, roomId)
+
+        // Notify host
+        const hostSocket = io.sockets.sockets.get(room.hostId)
+        if (hostSocket) {
+          hostSocket.emit('VIEWER_JOINED', {
+            viewerId: socket.id,
+            viewerInfo,
+          })
+        }
+
+        // Notify viewer
+        socket.emit('ROOM_JOINED', {
+          roomId: room.id,
+          hostId: room.hostId,
+          approved: viewerInfo.approved,
+        })
+
+        console.log(
+          `[${formatTimestamp()}] JOIN     room=${roomId} viewer=${socket.id} approved=${viewerInfo.approved}`,
+        )
+
+        callback?.({ success: true, roomId })
+      } catch (err) {
+        console.error(
+          `[${formatTimestamp()}] ERROR    JOIN_ROOM socket=${socket.id}`,
+          err,
+        )
+        callback?.({ success: false, error: 'Internal server error' })
+      }
+    },
+  )
+
+  // -----------------------------------------------------------------------
+  // 3. WEBRTC_SIGNAL
+  // -----------------------------------------------------------------------
+  socket.on(
+    'WEBRTC_SIGNAL',
+    (payload: { targetId: string; signal: unknown }) => {
+      try {
+        const { targetId, signal } = payload
+
+        if (!targetId || !signal) {
+          console.warn(
+            `[${formatTimestamp()}] WARN     WEBRTC_SIGNAL from ${socket.id} missing targetId or signal`,
+          )
+          return
+        }
+
+        const targetSocket = io.sockets.sockets.get(targetId)
+        if (!targetSocket) {
+          console.warn(
+            `[${formatTimestamp()}] WARN     WEBRTC_SIGNAL target ${targetId} not connected`,
+          )
+          socket.emit('ERROR', {
+            message: 'Target peer is no longer connected.',
+            code: 'PEER_GONE',
+          })
+          return
+        }
+
+        targetSocket.emit('WEBRTC_SIGNAL', {
+          from: socket.id,
+          signal,
+        })
+      } catch (err) {
+        console.error(
+          `[${formatTimestamp()}] ERROR    WEBRTC_SIGNAL socket=${socket.id}`,
+          err,
+        )
+      }
+    },
+  )
+
+  // -----------------------------------------------------------------------
+  // 4. DISCONNECT_VIEWER (host kicks)
+  // -----------------------------------------------------------------------
+  socket.on(
+    'DISCONNECT_VIEWER',
+    (payload: { viewerId: string }, callback?: (response: unknown) => void) => {
+      try {
+        const { viewerId } = payload
+        const roomId = socketToRoom.get(socket.id)
+        const room = roomId ? rooms.get(roomId) : null
+
+        if (!room || room.hostId !== socket.id) {
+          socket.emit('ERROR', {
+            message: 'Only the host can disconnect viewers.',
+            code: 'NOT_HOST',
+          })
+          callback?.({ success: false, error: 'Not host' })
+          return
+        }
+
+        if (!room.viewers.has(viewerId)) {
+          callback?.({ success: false, error: 'Viewer not found' })
+          return
+        }
+
+        const viewerSocket = io.sockets.sockets.get(viewerId)
+        if (viewerSocket) {
+          viewerSocket.emit('KICKED', { roomId: room.id })
+          viewerSocket.disconnect(true)
+        }
+
+        room.viewers.delete(viewerId)
+        socketToRoom.delete(viewerId)
+
+        console.log(
+          `[${formatTimestamp()}] KICK     room=${room.id} viewer=${viewerId} by host=${socket.id}`,
+        )
+
+        callback?.({ success: true })
+      } catch (err) {
+        console.error(
+          `[${formatTimestamp()}] ERROR    DISCONNECT_VIEWER socket=${socket.id}`,
+          err,
+        )
+        callback?.({ success: false, error: 'Internal server error' })
+      }
+    },
+  )
+
+  // -----------------------------------------------------------------------
+  // 5. UPDATE_ROOM_SETTINGS
+  // -----------------------------------------------------------------------
+  socket.on(
+    'UPDATE_ROOM_SETTINGS',
+    (
+      payload: Partial<RoomSettings>,
+      callback?: (response: unknown) => void,
+    ) => {
+      try {
+        const roomId = socketToRoom.get(socket.id)
+        const room = roomId ? rooms.get(roomId) : null
+
+        if (!room || room.hostId !== socket.id) {
+          socket.emit('ERROR', {
+            message: 'Only the host can update room settings.',
+            code: 'NOT_HOST',
+          })
+          callback?.({ success: false, error: 'Not host' })
+          return
+        }
+
+        // Merge settings
+        Object.assign(room.settings, payload)
+
+        // Broadcast updated settings to everyone in the room
+        const eventPayload = { roomId: room.id, settings: room.settings }
+        io.to(room.hostId).emit('ROOM_SETTINGS_UPDATED', eventPayload)
+        for (const [viewerId] of room.viewers) {
+          io.to(viewerId).emit('ROOM_SETTINGS_UPDATED', eventPayload)
+        }
+
+        console.log(
+          `[${formatTimestamp()}] SETTINGS room=${room.id} settings=${JSON.stringify(payload)}`,
+        )
+
+        callback?.({ success: true })
+      } catch (err) {
+        console.error(
+          `[${formatTimestamp()}] ERROR    UPDATE_ROOM_SETTINGS socket=${socket.id}`,
+          err,
+        )
+        callback?.({ success: false, error: 'Internal server error' })
+      }
+    },
+  )
+
+  // -----------------------------------------------------------------------
+  // 6. DEVICE_INFO
+  // -----------------------------------------------------------------------
+  socket.on(
+    'DEVICE_INFO',
+    (payload: {
+      viewerId?: string
+      deviceName?: string
+      os?: string
+      browser?: string
+      screenWidth?: number
+      screenHeight?: number
+    }) => {
+      try {
+        const roomId = socketToRoom.get(socket.id)
+        const room = roomId ? rooms.get(roomId) : null
+
+        if (!room) return
+
+        // The sending socket IS the viewer (use socket.id as authority)
+        const viewerId = payload.viewerId || socket.id
+        const viewer = room.viewers.get(viewerId)
+
+        if (viewer) {
+          viewer.deviceName = payload.deviceName
+          viewer.os = payload.os
+          viewer.browser = payload.browser
+          viewer.screenWidth = payload.screenWidth
+          viewer.screenHeight = payload.screenHeight
+
+          // Forward updated info to host
+          const hostSocket = io.sockets.sockets.get(room.hostId)
+          if (hostSocket) {
+            hostSocket.emit('VIEWER_JOINED', {
+              viewerId,
+              viewerInfo: viewer,
+            })
+          }
+
+          console.log(
+            `[${formatTimestamp()}] DEVICE   room=${roomId} viewer=${viewerId} device=${payload.deviceName ?? 'unknown'}`,
+          )
+        }
+      } catch (err) {
+        console.error(
+          `[${formatTimestamp()}] ERROR    DEVICE_INFO socket=${socket.id}`,
+          err,
+        )
+      }
+    },
+  )
+
+  // -----------------------------------------------------------------------
+  // 7. APPROVE_VIEWER
+  // -----------------------------------------------------------------------
+  socket.on(
+    'APPROVE_VIEWER',
+    (payload: { viewerId: string }, callback?: (response: unknown) => void) => {
+      try {
+        const { viewerId } = payload
+        const roomId = socketToRoom.get(socket.id)
+        const room = roomId ? rooms.get(roomId) : null
+
+        if (!room || room.hostId !== socket.id) {
+          callback?.({ success: false, error: 'Not host' })
+          return
+        }
+
+        const viewer = room.viewers.get(viewerId)
+        if (!viewer) {
+          callback?.({ success: false, error: 'Viewer not found' })
+          return
+        }
+
+        viewer.approved = true
+
+        const viewerSocket = io.sockets.sockets.get(viewerId)
+        if (viewerSocket) {
+          viewerSocket.emit('VIEWER_APPROVED', { roomId: room.id })
+        }
+
+        console.log(
+          `[${formatTimestamp()}] APPROVE  room=${room.id} viewer=${viewerId}`,
+        )
+
+        callback?.({ success: true })
+      } catch (err) {
+        console.error(
+          `[${formatTimestamp()}] ERROR    APPROVE_VIEWER socket=${socket.id}`,
+          err,
+        )
+        callback?.({ success: false, error: 'Internal server error' })
+      }
+    },
+  )
+
+  // -----------------------------------------------------------------------
+  // 8. DENY_VIEWER
+  // -----------------------------------------------------------------------
+  socket.on(
+    'DENY_VIEWER',
+    (payload: { viewerId: string }, callback?: (response: unknown) => void) => {
+      try {
+        const { viewerId } = payload
+        const roomId = socketToRoom.get(socket.id)
+        const room = roomId ? rooms.get(roomId) : null
+
+        if (!room || room.hostId !== socket.id) {
+          callback?.({ success: false, error: 'Not host' })
+          return
+        }
+
+        const viewerSocket = io.sockets.sockets.get(viewerId)
+
+        if (viewerSocket) {
+          viewerSocket.emit('VIEWER_DENIED', { roomId: room.id })
+          viewerSocket.disconnect(true)
+        }
+
+        room.viewers.delete(viewerId)
+        socketToRoom.delete(viewerId)
+
+        console.log(
+          `[${formatTimestamp()}] DENY     room=${room.id} viewer=${viewerId}`,
+        )
+
+        callback?.({ success: true })
+      } catch (err) {
+        console.error(
+          `[${formatTimestamp()}] ERROR    DENY_VIEWER socket=${socket.id}`,
+          err,
+        )
+        callback?.({ success: false, error: 'Internal server error' })
+      }
+    },
+  )
+
+  // -----------------------------------------------------------------------
+  // 9. PING / PONG  (application-level keepalive)
+  // -----------------------------------------------------------------------
+  socket.on('PING', () => {
+    socket.emit('PONG', { timestamp: Date.now() })
+  })
+
+  // -----------------------------------------------------------------------
+  // DISCONNECT  (cleanup)
+  // -----------------------------------------------------------------------
+  socket.on('disconnect', (reason) => {
+    try {
+      const roomId = socketToRoom.get(socket.id)
+      socketToRoom.delete(socket.id)
+
+      if (!roomId) {
+        console.log(
+          `[${formatTimestamp()}] LEAVE    socket=${socket.id} (no room) reason=${reason}`,
+        )
+        return
+      }
+
+      const room = rooms.get(roomId)
+      if (!room) return
+
+      if (room.hostId === socket.id) {
+        // ---- Host left ----
+        console.log(
+          `[${formatTimestamp()}] HOST-    room=${roomId} host=${socket.id} viewers=${room.viewers.size} reason=${reason}`,
+        )
+
+        for (const [viewerId] of room.viewers) {
+          const viewerSocket = io.sockets.sockets.get(viewerId)
+          if (viewerSocket) {
+            viewerSocket.emit('HOST_DISCONNECTED', { roomId })
+            viewerSocket.disconnect(true)
+            socketToRoom.delete(viewerId)
+          }
+        }
+
+        rooms.delete(roomId)
+      } else {
+        // ---- Viewer left ----
+        room.viewers.delete(socket.id)
+
+        console.log(
+          `[${formatTimestamp()}] VIEWER-  room=${roomId} viewer=${socket.id} reason=${reason}`,
+        )
+
+        const hostSocket = io.sockets.sockets.get(room.hostId)
+        if (hostSocket) {
+          hostSocket.emit('VIEWER_DISCONNECTED', { viewerId: socket.id })
+        }
+      }
+    } catch (err) {
+      console.error(
+        `[${formatTimestamp()}] ERROR    disconnect socket=${socket.id}`,
+        err,
+      )
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Graceful shutdown
+// ---------------------------------------------------------------------------
+
+function gracefulShutdown(signal: string) {
+  console.log(`\n[${formatTimestamp()}] SHUTDOWN received ${signal}`)
+
+  // Notify all connected clients
+  for (const [roomId, room] of rooms) {
+    const hostSocket = io.sockets.sockets.get(room.hostId)
+    if (hostSocket) {
+      hostSocket.emit('SERVER_SHUTDOWN', {
+        reason: 'Server is shutting down',
+      })
+    }
+    for (const [viewerId] of room.viewers) {
+      const viewerSocket = io.sockets.sockets.get(viewerId)
+      if (viewerSocket) {
+        viewerSocket.emit('SERVER_SHUTDOWN', {
+          reason: 'Server is shutting down',
+        })
+      }
+    }
+  }
+
+  io.close(() => {
+    console.log(`[${formatTimestamp()}] SHUTDOWN Socket.IO closed`)
+    httpServer.close(() => {
+      console.log(`[${formatTimestamp()}] SHUTDOWN HTTP server closed`)
+      process.exit(0)
+    })
+  })
+
+  // Force exit after 5 s if graceful shutdown hangs
+  setTimeout(() => {
+    console.error(
+      `[${formatTimestamp()}] SHUTDOWN forcing exit after timeout`,
+    )
+    process.exit(1)
+  }, 5_000)
+}
+
+process.on('SIGINT', () => gracefulShutdown('SIGINT'))
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'))
+
+// ---------------------------------------------------------------------------
+// Start
+// ---------------------------------------------------------------------------
+
+httpServer.listen(PORT, '0.0.0.0', () => {
+  console.log('='.repeat(56))
+  console.log('  LocalCast Signaling Server')
+  console.log(`  Port      : ${PORT}`)
+  console.log(`  Socket.IO : path="/"`)
+  console.log(`  CORS      : all origins`)
+  console.log(`  Ping      : timeout=60s  interval=25s`)
+  console.log('='.repeat(56))
+})
