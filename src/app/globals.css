@@ -1588,6 +1588,254 @@
     animation: dialog-corner-gradient 4s linear infinite;
     border-radius: inherit;
   }
+
+  /* ===== Phase 8: Material Ripple Effect ===== */
+
+  .ripple-effect {
+    position: relative;
+    overflow: hidden;
+  }
+  .ripple-effect::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at var(--ripple-x, 50%) var(--ripple-y, 50%), rgba(5, 150, 105, 0.25) 0%, transparent 60%);
+    opacity: 0;
+    transform: scale(0);
+    transition: transform 0.5s ease, opacity 0.4s ease;
+    pointer-events: none;
+  }
+  .ripple-effect:active::after {
+    opacity: 1;
+    transform: scale(2.5);
+  }
+
+  /* ===== Phase 8: 3D Morph Card Tilt ===== */
+
+  .morph-card {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
+    transform-style: preserve-3d;
+    perspective: 800px;
+  }
+  .morph-card:hover {
+    box-shadow: 0 12px 40px rgba(5, 150, 105, 0.1), 0 4px 16px rgba(0, 0, 0, 0.06);
+  }
+
+  /* ===== Phase 8: Animated Gradient Text ===== */
+
+  .text-gradient-animate {
+    background: linear-gradient(135deg, #059669, #0d9488, #14b8a6, #059669);
+    background-size: 300% 300%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: text-gradient-move 4s ease infinite;
+  }
+
+  /* ===== Phase 8: Glass Input Enhanced Focus ===== */
+
+  .glass-input-focus {
+    position: relative;
+  }
+  .glass-input-focus::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1.5px;
+    background: linear-gradient(135deg, #059669, #0d9488, #059669);
+    background-size: 200% 200%;
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    -webkit-mask-composite: xor;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+  }
+  .glass-input-focus:focus-within::before {
+    opacity: 1;
+    animation: text-gradient-move 3s ease infinite;
+  }
+
+  /* ===== Phase 8: Diagonal Shimmer Alternative ===== */
+
+  .shimmer-loading-2 {
+    background: linear-gradient(135deg,
+      rgba(128, 128, 128, 0.06) 25%,
+      rgba(128, 128, 128, 0.12) 37%,
+      rgba(128, 128, 128, 0.06) 63%);
+    background-size: 400% 100%;
+    animation: shimmer-diagonal 1.8s ease infinite;
+  }
+  .dark .shimmer-loading-2 {
+    background: linear-gradient(135deg,
+      rgba(255, 255, 255, 0.02) 25%,
+      rgba(255, 255, 255, 0.06) 37%,
+      rgba(255, 255, 255, 0.02) 63%);
+    background-size: 400% 100%;
+  }
+
+  /* ===== Phase 8: Elevated Button with Dynamic Shadow ===== */
+
+  .btn-elevated {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  }
+  .btn-elevated:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(5, 150, 105, 0.15), 0 2px 8px rgba(0, 0, 0, 0.08);
+  }
+  .btn-elevated:active {
+    transform: translateY(0px);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  }
+  .dark .btn-elevated:hover {
+    box-shadow: 0 6px 24px rgba(5, 150, 105, 0.2), 0 2px 8px rgba(0, 0, 0, 0.2);
+  }
+
+  /* ===== Phase 8: Scroll Reveal ===== */
+
+  .scroll-reveal {
+    opacity: 0;
+    transform: translateY(16px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+  .scroll-reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* ===== Phase 8: Notification Badge Bounce ===== */
+
+  .notification-badge {
+    position: relative;
+  }
+  .notification-badge::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: inherit;
+    border: 2px solid rgba(5, 150, 105, 0.4);
+    animation: notification-bounce 2s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  /* ===== Phase 8: Connection Pulse Line ===== */
+
+  .connection-pulse-line {
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(5, 150, 105, 0.5), rgba(13, 148, 136, 0.4), rgba(5, 150, 105, 0.5), transparent);
+    background-size: 200% 100%;
+    animation: connection-pulse-sweep 2s linear infinite;
+  }
+  .dark .connection-pulse-line {
+    background: linear-gradient(90deg, transparent, rgba(5, 150, 105, 0.6), rgba(13, 148, 136, 0.5), rgba(5, 150, 105, 0.6), transparent);
+    background-size: 200% 100%;
+  }
+
+  /* ===== Phase 8: Glow Text for Headings ===== */
+
+  .glow-text {
+    animation: glow-text-pulse 3s ease-in-out infinite;
+  }
+
+  /* ===== Phase 8: Micro-Interaction Scale+Rotate ===== */
+
+  .micro-interaction {
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .micro-interaction:active {
+    animation: micro-tap 0.3s ease;
+  }
+
+  /* ===== Phase 8: Skeleton Shine Sweep ===== */
+
+  .skeleton-shine {
+    position: relative;
+    overflow: hidden;
+  }
+  .skeleton-shine::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      105deg,
+      transparent 40%,
+      rgba(255, 255, 255, 0.15) 45%,
+      rgba(255, 255, 255, 0.25) 50%,
+      rgba(255, 255, 255, 0.15) 55%,
+      transparent 60%
+    );
+    background-size: 300% 100%;
+    animation: skeleton-shine-sweep 2.5s ease-in-out infinite;
+    pointer-events: none;
+    border-radius: inherit;
+  }
+
+  /* ===== Phase 8: Badge Pulse for Live Indicators ===== */
+
+  .badge-pulse {
+    animation: badge-pulse-anim 2s ease-in-out infinite;
+  }
+
+  /* ===== Phase 8: QR Code Glow ===== */
+
+  .qr-glow {
+    box-shadow: 0 0 30px rgba(5, 150, 105, 0.15), 0 0 60px rgba(5, 150, 105, 0.06);
+    animation: qr-glow-pulse 3s ease-in-out infinite;
+  }
+  .dark .qr-glow {
+    box-shadow: 0 0 40px rgba(5, 150, 105, 0.25), 0 0 80px rgba(5, 150, 105, 0.1);
+  }
+
+  /* ===== Phase 8: Footer Gradient Animation ===== */
+
+  .footer-gradient-animate {
+    background: linear-gradient(90deg, rgba(5, 150, 105, 0.02), rgba(13, 148, 136, 0.04), rgba(5, 150, 105, 0.02));
+    background-size: 200% 100%;
+    animation: footer-shift 6s ease-in-out infinite;
+  }
+  .dark .footer-gradient-animate {
+    background: linear-gradient(90deg, rgba(5, 150, 105, 0.04), rgba(13, 148, 136, 0.06), rgba(5, 150, 105, 0.04));
+    background-size: 200% 100%;
+  }
+
+  /* ===== Phase 8: Send Button Active Gradient ===== */
+
+  .send-active {
+    background: linear-gradient(135deg, #059669, #0d9488) !important;
+    box-shadow: 0 0 12px rgba(5, 150, 105, 0.3), 0 2px 8px rgba(5, 150, 105, 0.2);
+  }
+
+  /* ===== Phase 8: Parallax Container ===== */
+
+  .parallax-container {
+    transition: transform 0.1s ease-out;
+    will-change: transform;
+  }
+
+  /* ===== Phase 8: Scan Line Effect ===== */
+
+  .scan-line-effect {
+    position: relative;
+    overflow: hidden;
+  }
+  .scan-line-effect::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg,
+      transparent 0%,
+      transparent 45%,
+      rgba(5, 150, 105, 0.06) 50%,
+      transparent 55%,
+      transparent 100%
+    );
+    background-size: 100% 200%;
+    animation: scan-line-move 3s ease-in-out infinite;
+    pointer-events: none;
+    border-radius: inherit;
+  }
 }
 
 /* ===== Keyframes ===== */
@@ -1841,4 +2089,82 @@
 @keyframes wave-undulate {
   0%, 100% { d: path("M0,20 Q60,8 120,20 T240,20 L240,40 L0,40 Z"); }
   50% { d: path("M0,20 Q60,32 120,20 T240,20 L240,40 L0,40 Z"); }
+}
+
+/* ===== Phase 8 Keyframes ===== */
+
+@keyframes text-gradient-move {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes notification-bounce {
+  0%, 100% { transform: scale(1); opacity: 0.6; }
+  50% { transform: scale(1.15); opacity: 1; }
+}
+
+@keyframes glow-text-pulse {
+  0%, 100% { text-shadow: 0 0 8px rgba(5, 150, 105, 0.2), 0 0 16px rgba(5, 150, 105, 0.08); }
+  50% { text-shadow: 0 0 16px rgba(5, 150, 105, 0.35), 0 0 32px rgba(5, 150, 105, 0.15); }
+}
+
+@keyframes micro-tap {
+  0% { transform: scale(1) rotate(0deg); }
+  30% { transform: scale(0.92) rotate(-2deg); }
+  60% { transform: scale(1.04) rotate(1deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+@keyframes skeleton-shine-sweep {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes badge-pulse-anim {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.3); }
+  50% { box-shadow: 0 0 0 4px rgba(5, 150, 105, 0); }
+}
+
+@keyframes qr-glow-pulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(5, 150, 105, 0.1), 0 0 40px rgba(5, 150, 105, 0.04); }
+  50% { box-shadow: 0 0 40px rgba(5, 150, 105, 0.2), 0 0 80px rgba(5, 150, 105, 0.08); }
+}
+
+@keyframes shimmer-diagonal {
+  0% { background-position: 100% 0; }
+  100% { background-position: 0% 100%; }
+}
+
+@keyframes connection-pulse-sweep {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes footer-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes scan-line-move {
+  0% { background-position: 0% -100%; }
+  100% { background-position: 0% 200%; }
+}
+
+/* ===== Phase 8: Reduced Motion Overrides ===== */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+  }
+  .scroll-reveal {
+    opacity: 1;
+    transform: none;
+  }
+  .typing-indicator span {
+    opacity: 0.4;
+  }
 }

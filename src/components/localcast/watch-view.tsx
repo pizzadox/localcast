@@ -24,10 +24,12 @@ import {
   Radio,
   Loader2,
   Pause,
+  Hand,
 } from "lucide-react";
 
 import { pageVariants, REACTION_EMOJIS } from "./types";
 import { formatElapsed } from "./types";
+import type { AnnotationEvent } from "./types";
 
 interface WatchViewProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -52,6 +54,10 @@ interface WatchViewProps {
   onSendReaction: (emoji: string) => void;
   onStartRecording: () => void;
   onStopRecording: () => void;
+  annotations: AnnotationEvent[];
+  annotationCanvasRef: React.RefObject<HTMLCanvasElement | null>;
+  onRaiseHand: () => void;
+  onLowerHand: () => void;
 }
 
 export function WatchView({
@@ -77,6 +83,10 @@ export function WatchView({
   onSendReaction,
   onStartRecording,
   onStopRecording,
+  annotations,
+  annotationCanvasRef,
+  onRaiseHand,
+  onLowerHand,
 }: WatchViewProps) {
   const [showReactions, setShowReactions] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -84,6 +94,8 @@ export function WatchView({
   const qualityClass = connectionQuality === "good" ? "quality-good" : connectionQuality === "fair" ? "quality-fair" : "quality-poor";
   const latencyClass = latency < 50 ? "latency-good" : latency < 100 ? "latency-fair" : "latency-poor";
   const healthColor = connectionHealthScore > 80 ? "bg-emerald-500" : connectionHealthScore >= 50 ? "bg-yellow-500" : "bg-red-500";
+  const healthLabel = connectionHealthScore > 80 ? "Excellent" : connectionHealthScore >= 50 ? "Fair" : "Poor";
+  const healthPercent = Math.min(100, Math.max(0, connectionHealthScore));
 
   const handleMouseMove = useCallback(() => {
     setControlsVisible(true);
@@ -176,6 +188,23 @@ export function WatchView({
             </Badge>
           )}
 
+          {/* Connection Health Bar */}
+          <div className="flex items-center gap-2" title={`Connection Health: ${healthPercent}% — ${healthLabel}`}>
+            <div className="h-1.5 w-16 rounded-full bg-muted/50 overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-1000 ease-out ${healthColor}`}
+                style={{ width: `${healthPercent}%` }}
+              />
+            </div>
+            <span className={`text-[9px] font-semibold tabular-nums ${
+              connectionHealthScore > 80 ? "text-emerald-600 dark:text-emerald-400" :
+              connectionHealthScore >= 50 ? "text-amber-600 dark:text-amber-400" :
+              "text-red-600 dark:text-red-400"
+            }`}>
+              {healthPercent}%
+            </span>
+          </div>
+
           <div className="mx-1 h-4 w-px bg-border/50" />
 
           {/* Recording indicator */}
@@ -251,20 +280,29 @@ export function WatchView({
         </div>
       )}
 
-      {/* Video Container with Vignette + Gradient Border + Ambient Glow */}
-      <div className={`vignette video-bottom-gradient video-container ambient-glow flex flex-1 items-center justify-center overflow-hidden rounded-xl border shadow-xl shadow-black/20 transition-all duration-500 ${connectionStatus === "connected" ? "gradient-border-subtle" : ""} ${connectionQuality === "poor" && connectionStatus === "connected" ? "ring-1 ring-red-500/30" : ""}`}
+      {/* Video Container with Vignette + Gradient Border + Ambient Glow + Parallax */}
+      <div
+        className={`vignette video-bottom-gradient video-container ambient-glow parallax-container flex flex-1 items-center justify-center overflow-hidden rounded-xl border shadow-xl shadow-black/20 transition-all duration-500 ${connectionStatus === "connected" ? "gradient-border-subtle" : ""} ${connectionQuality === "poor" && connectionStatus === "connected" ? "ring-1 ring-red-500/30" : ""}`}
         ref={(el) => {
-          // Attach mousemove listener to video container for controls auto-hide
           if (el && !containerRef.current) {
             containerRef.current = el;
           }
           if (el) {
-            el.onmousemove = handleMouseMove;
+            el.onmousemove = (e) => {
+              const rect = el.getBoundingClientRect();
+              const x = ((e.clientX - rect.left) / rect.width - 0.5) * 6;
+              const y = ((e.clientY - rect.top) / rect.height - 0.5) * 6;
+              el.style.transform = `perspective(1000px) rotateX(${-y}deg) rotateY(${x}deg)`;
+              handleMouseMove();
+            };
+            el.onmouseleave = () => {
+              el.style.transform = '';
+              handleMouseLeave();
+            };
           }
         }}
         style={{ minHeight: "55vh" }}
       >
-        {error ? (
           <div className="flex flex-col items-center gap-4 p-8 text-center">
             <div className="flex size-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-950">
               <AlertCircle className="size-8 text-red-500" />
@@ -313,6 +351,13 @@ export function WatchView({
               muted={false}
               className="max-h-full w-full object-contain"
             />
+            {/* Annotation overlay for viewers */}
+            {annotations.length > 0 && (
+              <canvas
+                ref={annotationCanvasRef}
+                className="pointer-events-none absolute inset-0 z-10 w-full h-full"
+              />
+            )}
             <AnimatePresence>
               {isPaused && (
                 <motion.div
@@ -437,6 +482,19 @@ export function WatchView({
             title={isRecording ? "Stop recording" : "Start recording"}
           >
             <Radio className="size-4" />
+          </Button>
+        )}
+
+        {/* Raise Hand */}
+        {connectionStatus === "connected" && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onRaiseHand}
+            className="size-9 rounded-xl transition-all duration-200 hover:bg-amber-100 hover:text-amber-600 dark:hover:bg-amber-950 dark:hover:text-amber-400"
+            title="Raise hand"
+          >
+            <Hand className="size-4" />
           </Button>
         )}
       </div>

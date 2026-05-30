@@ -21,6 +21,7 @@ interface RoomSettings {
   maxViewers: number
   requireApproval: boolean
   password?: string
+  theme?: string
   [key: string]: unknown
 }
 
@@ -191,6 +192,7 @@ io.on('connection', (socket: Socket) => {
           maxViewers: payload?.maxViewers ?? 0, // 0 = unlimited
           requireApproval: payload?.requireApproval ?? false,
           password: payload?.password || '',
+          theme: payload?.theme || 'default',
         },
       }
 
@@ -599,6 +601,108 @@ io.on('connection', (socket: Socket) => {
   )
 
   // -----------------------------------------------------------------------
+  // 8b. ANNOTATION (host draws, broadcast to all viewers)
+  // -----------------------------------------------------------------------
+  socket.on(
+    'ANNOTATION',
+    (payload: { roomId: string; annotation: unknown }) => {
+      try {
+        const { roomId, annotation } = payload
+        const room = rooms.get(roomId)
+        if (!room || room.hostId !== socket.id) return
+
+        for (const [viewerId] of room.viewers) {
+          const viewerSocket = io.sockets.sockets.get(viewerId)
+          if (viewerSocket) {
+            viewerSocket.emit('ANNOTATION', { roomId, annotation })
+          }
+        }
+      } catch (err) {
+        console.error(`[${formatTimestamp()}] ERROR    ANNOTATION socket=${socket.id}`, err)
+      }
+    },
+  )
+
+  // -----------------------------------------------------------------------
+  // 8c. SPOTLIGHT_VIEWER (host spotlights a viewer)
+  // -----------------------------------------------------------------------
+  socket.on(
+    'SPOTLIGHT_VIEWER',
+    (payload: { roomId: string; viewerId: string }, callback?: (response: unknown) => void) => {
+      try {
+        const { roomId, viewerId } = payload
+        const room = rooms.get(roomId)
+        if (!room || room.hostId !== socket.id) {
+          callback?.({ success: false, error: 'Not host' })
+          return
+        }
+
+        // Broadcast spotlight to all participants
+        const hostSocket = io.sockets.sockets.get(room.hostId)
+        if (hostSocket) {
+          hostSocket.emit('SPOTLIGHT_VIEWER', { roomId, viewerId })
+        }
+        for (const [vid] of room.viewers) {
+          const viewerSocket = io.sockets.sockets.get(vid)
+          if (viewerSocket) {
+            viewerSocket.emit('SPOTLIGHT_VIEWER', { roomId, viewerId })
+          }
+        }
+
+        console.log(`[${formatTimestamp()}] SPOTLIGHT room=${roomId} viewer=${viewerId}`)
+        callback?.({ success: true })
+      } catch (err) {
+        console.error(`[${formatTimestamp()}] ERROR    SPOTLIGHT_VIEWER socket=${socket.id}`, err)
+        callback?.({ success: false, error: 'Internal server error' })
+      }
+    },
+  )
+
+  // -----------------------------------------------------------------------
+  // 8d. RAISE_HAND / LOWER_HAND (viewer gestures)
+  // -----------------------------------------------------------------------
+  socket.on(
+    'RAISE_HAND',
+    (payload: { roomId: string }) => {
+      try {
+        const { roomId } = payload
+        const room = rooms.get(roomId)
+        if (!room) return
+
+        // Notify host
+        const hostSocket = io.sockets.sockets.get(room.hostId)
+        if (hostSocket) {
+          hostSocket.emit('VIEWER_HAND_RAISED', { roomId, viewerId: socket.id })
+        }
+
+        console.log(`[${formatTimestamp()}] HAND_UP  room=${roomId} viewer=${socket.id}`)
+      } catch (err) {
+        console.error(`[${formatTimestamp()}] ERROR    RAISE_HAND socket=${socket.id}`, err)
+      }
+    },
+  )
+
+  socket.on(
+    'LOWER_HAND',
+    (payload: { roomId: string }) => {
+      try {
+        const { roomId } = payload
+        const room = rooms.get(roomId)
+        if (!room) return
+
+        const hostSocket = io.sockets.sockets.get(room.hostId)
+        if (hostSocket) {
+          hostSocket.emit('VIEWER_HAND_LOWERED', { roomId, viewerId: socket.id })
+        }
+
+        console.log(`[${formatTimestamp()}] HAND_DOWN room=${roomId} viewer=${socket.id}`)
+      } catch (err) {
+        console.error(`[${formatTimestamp()}] ERROR    LOWER_HAND socket=${socket.id}`, err)
+      }
+    },
+  )
+
+  // -----------------------------------------------------------------------
   // 9. PING / PONG  (application-level keepalive — works for host & viewer)
   // -----------------------------------------------------------------------
   socket.on('PING', (callback?: (response: unknown) => void) => {
@@ -680,6 +784,30 @@ io.on('connection', (socket: Socket) => {
           `[${formatTimestamp()}] ERROR    CHAT_MESSAGE socket=${socket.id}`,
           err,
         )
+      }
+    },
+  )
+
+  // -----------------------------------------------------------------------
+  // 11b. HOST_LOWER_HAND (host lowers a viewer's hand)
+  // -----------------------------------------------------------------------
+  socket.on(
+    'HOST_LOWER_HAND',
+    (payload: { roomId: string; viewerId: string }) => {
+      try {
+        const { roomId, viewerId } = payload
+        const room = rooms.get(roomId)
+        if (!room || room.hostId !== socket.id) return
+
+        // Notify the specific viewer
+        const viewerSocket = io.sockets.sockets.get(viewerId)
+        if (viewerSocket) {
+          viewerSocket.emit('HAND_LOWERED_BY_HOST', { roomId })
+        }
+
+        console.log(`[${formatTimestamp()}] HOST_HAND_DOWN room=${roomId} viewer=${viewerId}`)
+      } catch (err) {
+        console.error(`[${formatTimestamp()}] ERROR    HOST_LOWER_HAND socket=${socket.id}`, err)
       }
     },
   )

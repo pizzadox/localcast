@@ -11,6 +11,34 @@ export type ConnectionStatus = "disconnected" | "connecting" | "connected";
 
 export type ConnectionQuality = "good" | "fair" | "poor";
 
+// ── Session Theme ──────────────────────────────────────────────────────────
+
+export type SessionTheme = "default" | "sunset" | "ocean" | "midnight";
+
+// ── Annotation / Whiteboard ────────────────────────────────────────────────
+
+export type AnnotationTool = "pen" | "highlighter" | "arrow" | "text" | "eraser";
+
+export interface AnnotationEvent {
+  type: "draw" | "clear";
+  points: { x: number; y: number }[];
+  color: string;
+  width: number;
+  tool: AnnotationTool;
+  roomId?: string;
+  senderId?: string;
+}
+
+// ── Connection Speed Test ───────────────────────────────────────────────────
+
+export type SpeedTestQuality = "excellent" | "good" | "fair" | "poor" | "testing" | "idle";
+
+export interface SpeedTestResult {
+  latencyMs: number;
+  quality: SpeedTestQuality;
+  timestamp: number;
+}
+
 // ── Viewer ───────────────────────────────────────────────────────────────────
 
 export interface Viewer {
@@ -133,6 +161,55 @@ export const SHARE_MODE_CONFIG: Record<ShareMode, { label: string; icon: string;
 
 /** Max viewer limit options (0 = unlimited). */
 export const MAX_VIEWER_OPTIONS: number[] = [0, 5, 10, 20, 50];
+
+// ─── Session Theme Presets ──────────────────────────────────────────────────
+
+export const SESSION_THEMES: Record<SessionTheme, {
+  label: string;
+  primary: string;
+  primaryDark: string;
+  bg: string;
+  border: string;
+  accent: string;
+  swatch: string;
+}> = {
+  default: {
+    label: "Default",
+    primary: "emerald",
+    primaryDark: "dark:bg-emerald-400",
+    bg: "bg-emerald-600",
+    border: "border-emerald-500",
+    accent: "text-emerald-600",
+    swatch: "bg-gradient-to-br from-emerald-400 to-teal-500",
+  },
+  sunset: {
+    label: "Sunset",
+    primary: "amber",
+    primaryDark: "dark:bg-amber-400",
+    bg: "bg-amber-600",
+    border: "border-amber-500",
+    accent: "text-amber-600",
+    swatch: "bg-gradient-to-br from-amber-400 to-orange-500",
+  },
+  ocean: {
+    label: "Ocean",
+    primary: "cyan",
+    primaryDark: "dark:bg-cyan-400",
+    bg: "bg-cyan-600",
+    border: "border-cyan-500",
+    accent: "text-cyan-600",
+    swatch: "bg-gradient-to-br from-cyan-400 to-teal-500",
+  },
+  midnight: {
+    label: "Midnight",
+    primary: "indigo",
+    primaryDark: "dark:bg-indigo-400",
+    bg: "bg-indigo-600",
+    border: "border-indigo-500",
+    accent: "text-indigo-600",
+    swatch: "bg-gradient-to-br from-indigo-400 to-purple-500",
+  },
+};
 
 /** Allowed reaction emojis (mirrors server-side whitelist). */
 export const REACTION_EMOJIS = [

@@ -32,10 +32,16 @@ import {
   Eye,
   EyeOff,
   Users,
+  Palette,
+  Zap,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  CircleDot,
 } from "lucide-react";
 
-import { pageVariants, QUALITY_PRESETS, SHARE_MODE_CONFIG, MAX_VIEWER_OPTIONS } from "./types";
-import type { QualityPreset, ShareMode } from "./types";
+import { pageVariants, QUALITY_PRESETS, SHARE_MODE_CONFIG, MAX_VIEWER_OPTIONS, SESSION_THEMES } from "./types";
+import type { QualityPreset, ShareMode, SessionTheme, SpeedTestResult } from "./types";
 import { useState } from "react";
 
 interface ShareSetupViewProps {
@@ -50,6 +56,10 @@ interface ShareSetupViewProps {
   onRoomPasswordChange: (v: string) => void;
   maxViewers: number;
   onMaxViewersChange: (v: number) => void;
+  roomTheme: SessionTheme;
+  onRoomThemeChange: (v: SessionTheme) => void;
+  speedTestResult: SpeedTestResult;
+  onConnectionSpeedTest: () => Promise<void>;
   error: string | null;
   onBack: () => void;
 }
@@ -90,6 +100,10 @@ export function ShareSetupView({
   onRoomPasswordChange,
   maxViewers,
   onMaxViewersChange,
+  roomTheme,
+  onRoomThemeChange,
+  speedTestResult,
+  onConnectionSpeedTest,
   error,
   onBack,
 }: ShareSetupViewProps) {
@@ -117,6 +131,12 @@ export function ShareSetupView({
           <CardDescription>
             Choose what to share and configure your session settings.
           </CardDescription>
+          {/* Step progress indicator */}
+          <div className="mt-3 flex items-center justify-center gap-2">
+            <div className={`h-1.5 w-8 rounded-full transition-all duration-500 ${qualityPreset !== "low" ? "bg-emerald-500" : "bg-muted"}`} />
+            <div className={`h-1.5 w-8 rounded-full transition-all duration-500 ${qualityPreset !== "low" ? "bg-emerald-400" : "bg-muted"}`} />
+            <div className={`h-1.5 w-8 rounded-full transition-all duration-500 ${true ? "bg-emerald-500" : "bg-muted"}`} />
+          </div>
         </CardHeader>
         <CardContent className="space-y-5">
           {error && (
@@ -200,7 +220,7 @@ export function ShareSetupView({
                       key={key}
                       whileTap={{ scale: 0.97 }}
                       onClick={() => onQualityChange(key)}
-                      className={`quality-card relative flex flex-col items-center gap-2 rounded-xl border-2 p-3 ${
+                      className={`quality-card relative flex flex-col items-center gap-2 rounded-xl border-2 p-3 micro-interaction ${
                         isSelected
                           ? "selected border-emerald-500"
                           : "border-transparent bg-background text-muted-foreground hover:border-border hover:bg-muted/50"
@@ -210,7 +230,21 @@ export function ShareSetupView({
                       {key === "medium" && (
                         <div className="badge-recommended">Recommended</div>
                       )}
-                      {/* Quality icon */}
+                      {/* Quality icon with tooltip hint */}
+                      <div className="group/quality relative">
+                        <div className={`flex size-8 items-center justify-center rounded-lg transition-all duration-200 ${
+                          isSelected
+                            ? "bg-emerald-100 dark:bg-emerald-950/80"
+                            : "bg-muted/50"
+                        }`}>
+                          <Icon className={`size-4 ${qualityColors[key]}`} />
+                        </div>
+                        <div className="absolute -top-8 left-1/2 -translate-x-1/2 hidden group-hover/quality:block z-10">
+                          <div className="tooltip-bounce rounded-lg border bg-background/95 px-2 py-1 text-[9px] font-medium text-muted-foreground shadow-lg whitespace-nowrap backdrop-blur-sm">
+                            {key === "high" ? "Best for fast WiFi (1080p)" : key === "medium" ? "Balanced quality (720p)" : "Low bandwidth (480p)"}
+                          </div>
+                        </div>
+                      </div>
                       <div className={`flex size-8 items-center justify-center rounded-lg transition-all duration-200 ${
                         isSelected
                           ? "bg-emerald-100 dark:bg-emerald-950/80"
@@ -290,6 +324,94 @@ export function ShareSetupView({
           {/* Section divider */}
           <div className="section-divider" />
 
+          {/* Session Theme */}
+          <div className="rounded-xl border bg-muted/20 p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Palette className="size-4 text-emerald-600 dark:text-emerald-400" />
+              <span className="text-sm font-semibold">Session Theme</span>
+            </div>
+            <div className="flex gap-3">
+              {(Object.entries(SESSION_THEMES) as [SessionTheme, typeof SESSION_THEMES.default][]).map(([key, config]) => {
+                const isSelected = roomTheme === key;
+                return (
+                  <motion.button
+                    key={key}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => onRoomThemeChange(key)}
+                    className={`relative flex flex-col items-center gap-1.5 rounded-xl border-2 px-4 py-3 transition-all duration-200 ${
+                      isSelected
+                        ? "border-current shadow-sm"
+                        : "border-transparent bg-background hover:border-border hover:bg-muted/50"
+                    }`}
+                  >
+                    <div className={`flex size-8 items-center justify-center rounded-full ${config.swatch}`} />
+                    <span className={`text-xs font-medium ${isSelected ? config.accent : "text-muted-foreground"}`}>{config.label}</span>
+                    {isSelected && (
+                      <motion.div
+                        layoutId="theme-indicator"
+                        className="absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full bg-emerald-500 shadow-sm"
+                        transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                      >
+                        <Sparkles className="size-2.5 text-white" />
+                      </motion.div>
+                    )}
+                  </motion.button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Section divider */}
+          <div className="section-divider" />
+
+          {/* Connection Speed Test */}
+          <div className="rounded-xl border bg-muted/20 p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Zap className="size-4 text-emerald-600 dark:text-emerald-400" />
+              <span className="text-sm font-semibold">Connection Test</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={onConnectionSpeedTest}
+                disabled={speedTestResult.quality === "testing"}
+              >
+                {speedTestResult.quality === "testing" ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <CircleDot className="size-3.5" />
+                )}
+                Test Connection
+              </Button>
+              {speedTestResult.quality !== "idle" && speedTestResult.quality !== "testing" && (
+                <div className="flex items-center gap-1.5">
+                  {speedTestResult.quality === "excellent" && <CheckCircle2 className="size-4 text-emerald-500" />}
+                  {speedTestResult.quality === "good" && <CheckCircle2 className="size-4 text-emerald-500" />}
+                  {speedTestResult.quality === "fair" && <CheckCircle2 className="size-4 text-amber-500" />}
+                  {speedTestResult.quality === "poor" && <XCircle className="size-4 text-red-500" />}
+                  <span className={`text-xs font-medium ${
+                    speedTestResult.quality === "excellent" || speedTestResult.quality === "good"
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : speedTestResult.quality === "fair"
+                        ? "text-amber-600 dark:text-amber-400"
+                        : "text-red-600 dark:text-red-400"
+                  }`}>
+                    {speedTestResult.quality.charAt(0).toUpperCase() + speedTestResult.quality.slice(1)}
+                    {speedTestResult.latencyMs > 0 && <span className="text-muted-foreground"> ({speedTestResult.latencyMs}ms)</span>}
+                  </span>
+                </div>
+              )}
+              {speedTestResult.quality === "testing" && (
+                <span className="text-xs text-muted-foreground animate-pulse">Testing...</span>
+              )}
+            </div>
+          </div>
+
+          {/* Section divider */}
+          <div className="section-divider" />
+
           {/* Password Protection toggle */}
           <div className="rounded-xl border bg-muted/20 p-4 transition-all duration-300 hover:bg-muted/30 toggle-smooth">
             <div className="flex items-center justify-between">
@@ -346,7 +468,7 @@ export function ShareSetupView({
           <div className="section-divider" />
 
           {/* Approval toggle */}
-          <div className={`approval-glow flex items-center justify-between rounded-xl border bg-muted/20 p-4 transition-all duration-300 hover:bg-muted/30 toggle-smooth ${requireApproval ? "active" : ""}`}>
+          <div className={`approval-glow flex items-center justify-between rounded-xl border bg-muted/20 p-4 transition-all duration-300 hover:bg-muted/30 toggle-smooth ripple-effect ${requireApproval ? "active" : ""}`}>
             <div className="flex items-center gap-3">
               <div className={`flex size-9 items-center justify-center rounded-lg transition-all duration-300 ${requireApproval ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400" : "bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-400"}`}>
                 <Shield className="size-4" />
@@ -375,7 +497,7 @@ export function ShareSetupView({
             className="btn-press btn-shine btn-disabled-enhanced relative w-full overflow-hidden bg-emerald-600 text-white shadow-lg shadow-emerald-500/25 hover:bg-emerald-700 hover:shadow-xl hover:shadow-emerald-500/30 transition-all dark:bg-emerald-600 dark:hover:bg-emerald-700 h-12 text-base font-semibold disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed"
             size="lg"
           >
-            <span className="absolute inset-0 overflow-hidden rounded-md">
+            <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-md">
               <span
                 className="absolute inset-0 -translate-x-full animate-[shimmer_2.5s_infinite]"
                 style={{

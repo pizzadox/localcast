@@ -52,12 +52,21 @@ import {
   Network,
   Pause,
   Play,
+  Pen,
+  Highlighter,
+  ArrowUpRight,
+  Type,
+  Eraser,
+  Trash2,
+  Star,
+  Hand,
+  Link,
 } from "lucide-react";
 
 import { useState } from "react";
 import { toast } from "sonner";
 import { pageVariants, formatBytes, formatBitrate, formatElapsed } from "./types";
-import type { ViewerInfo, ViewerConnectionQuality, IceConnectionInfo } from "./types";
+import type { ViewerInfo, ViewerConnectionQuality, IceConnectionInfo, AnnotationTool, AnnotationEvent } from "./types";
 
 interface ShareActiveViewProps {
   roomId: string;
@@ -88,7 +97,20 @@ interface ShareActiveViewProps {
   onApproveViewer: (viewerId: string) => void;
   onDenyViewer: (viewerId: string) => void;
   onDisconnectViewer: (viewerId: string) => void;
+  onSpotlightViewer: (viewerId: string) => void;
+  onHostLowerHand: (viewerId: string) => void;
+  spotlightedViewer: string | null;
+  raisedHands: Set<string>;
   onStopSharing: () => void;
+  showAnnotationOverlay: boolean;
+  setShowAnnotationOverlay: (v: boolean) => void;
+  annotationTool: AnnotationTool;
+  setAnnotationTool: (v: AnnotationTool) => void;
+  annotationColor: string;
+  setAnnotationColor: (v: string) => void;
+  annotations: AnnotationEvent[];
+  clearAnnotations: () => void;
+  annotationCanvasRef: React.RefObject<HTMLCanvasElement | null>;
 }
 
 // Connection quality dot component
@@ -133,7 +155,20 @@ export function ShareActiveView({
   onApproveViewer,
   onDenyViewer,
   onDisconnectViewer,
+  onSpotlightViewer,
+  onHostLowerHand,
+  spotlightedViewer,
+  raisedHands,
   onStopSharing,
+  showAnnotationOverlay,
+  setShowAnnotationOverlay,
+  annotationTool,
+  setAnnotationTool,
+  annotationColor,
+  setAnnotationColor,
+  annotations,
+  clearAnnotations,
+  annotationCanvasRef,
 }: ShareActiveViewProps) {
   const [statsOpen, setStatsOpen] = useState(false);
   const [dashboardOpen, setDashboardOpen] = useState(false);
@@ -172,6 +207,8 @@ export function ShareActiveView({
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Animated connection line decoration */}
+              <div className="connection-pulse-line rounded-full mx-auto max-w-[60%]" />
               <div className="flex items-center gap-3">
                 <div className="flex flex-1 items-center justify-center rounded-xl border-2 border-dashed border-emerald-300/60 bg-emerald-50/50 p-4 transition-colors dark:border-emerald-700/60 dark:bg-emerald-950/30">
                   <div className="flex gap-2">
@@ -181,7 +218,7 @@ export function ShareActiveView({
                         initial={{ opacity: 0, scale: 0.5, y: 8 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         transition={{ delay: i * 0.08, type: "spring", stiffness: 400, damping: 20 }}
-                        className="room-code-char inline-flex size-10 sm:size-12 items-center justify-center rounded-lg bg-emerald-100/80 font-mono text-2xl sm:text-3xl font-bold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 cursor-default sequential-glow"
+                        className="room-code-char inline-flex size-10 sm:size-12 items-center justify-center rounded-lg bg-emerald-100/80 font-mono text-2xl sm:text-3xl font-bold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 cursor-default sequential-glow skeleton-shine"
                         style={{ animationDelay: `${i * 0.12}s` }}
                       >
                         {char}
@@ -219,6 +256,19 @@ export function ShareActiveView({
                     <QrCode className="size-4" />
                   </Button>
                 </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-1.5 w-full gap-1.5 text-xs font-medium text-emerald-600 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-700 dark:hover:bg-emerald-950 dark:hover:border-emerald-700 dark:hover:text-emerald-300"
+                  onClick={() => {
+                    const url = `${window.location.origin}?join=${roomId}`;
+                    navigator.clipboard?.writeText(url);
+                    toast.success("Link copied!", { description: "Viewers can use this link to join directly" });
+                  }}
+                >
+                  <Link className="size-3" />
+                  Share Invite Link
+                </Button>
               </div>
               <p className="text-center text-xs text-muted-foreground/60">
                 Share this code or scan the QR code to join
@@ -248,6 +298,15 @@ export function ShareActiveView({
                     variant="outline"
                     size="sm"
                     className="h-7 gap-1.5 text-xs"
+                    onClick={() => setShowAnnotationOverlay(!showAnnotationOverlay)}
+                  >
+                    <Pen className="size-3" />
+                    Whiteboard
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 gap-1.5 text-xs"
                     onClick={() => setDashboardOpen(true)}
                   >
                     <BarChart3 className="size-3" />
@@ -269,6 +328,28 @@ export function ShareActiveView({
                   muted
                   className="aspect-video w-full object-contain"
                 />
+                {/* Annotation Canvas Overlay */}
+                {showAnnotationOverlay && (
+                  <div className="absolute inset-0 z-20 bg-black/5 rounded-xl">
+                    <canvas
+                      ref={annotationCanvasRef}
+                      className="absolute inset-0 w-full h-full"
+                      style={{ touchAction: "none" }}
+                    />
+                    <div className="absolute top-2 right-2 flex flex-col gap-1 rounded-lg border bg-background/90 p-1 shadow-lg backdrop-blur-sm">
+                      <button onClick={() => setAnnotationTool("pen")} className={`flex size-8 items-center justify-center rounded-md hover:bg-muted transition-colors ${annotationTool === "pen" ? "bg-muted text-red-500" : "text-muted-foreground"}`} title="Pen"><Pen className="size-4" /></button>
+                      <button onClick={() => setAnnotationTool("highlighter")} className={`flex size-8 items-center justify-center rounded-md hover:bg-muted transition-colors ${annotationTool === "highlighter" ? "bg-muted text-yellow-500" : "text-muted-foreground"}`} title="Highlighter"><Highlighter className="size-4" /></button>
+                      <button onClick={() => setAnnotationTool("eraser")} className={`flex size-8 items-center justify-center rounded-md hover:bg-muted transition-colors ${annotationTool === "eraser" ? "bg-muted text-muted-foreground" : "text-muted-foreground"}`} title="Eraser"><Eraser className="size-4" /></button>
+                      <div className="h-px bg-border" />
+                      <button onClick={() => setAnnotationColor("#ef4444")} className="flex size-8 items-center justify-center rounded-md hover:bg-muted transition-colors" title="Red"><div className="size-4 rounded-full bg-red-500" /></button>
+                      <button onClick={() => setAnnotationColor("#3b82f6")} className="flex size-8 items-center justify-center rounded-md hover:bg-muted transition-colors" title="Blue"><div className="size-4 rounded-full bg-blue-500" /></button>
+                      <button onClick={() => setAnnotationColor("#22c55e")} className="flex size-8 items-center justify-center rounded-md hover:bg-muted transition-colors" title="Green"><div className="size-4 rounded-full bg-green-500" /></button>
+                      <button onClick={() => setAnnotationColor("#f59e0b")} className="flex size-8 items-center justify-center rounded-md hover:bg-muted transition-colors" title="Yellow"><div className="size-4 rounded-full bg-amber-500" /></button>
+                      <div className="h-px bg-border" />
+                      <button onClick={clearAnnotations} className="flex size-8 items-center justify-center rounded-md hover:bg-red-50 hover:text-red-500 text-muted-foreground transition-colors" title="Clear all"><Trash2 className="size-4" /></button>
+                    </div>
+                  </div>
+                )}
                 {/* PAUSED overlay */}
                 {isPaused && (
                   <motion.div
@@ -354,7 +435,7 @@ export function ShareActiveView({
                         viewer.approved
                           ? "border-l-4 border-l-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20"
                           : "border-l-4 border-l-yellow-500 hover:bg-yellow-50/50 dark:hover:bg-yellow-950/20"
-                      }`}
+                      }${spotlightedViewer === viewer.id ? " ring-2 ring-amber-400/60 shadow-amber-500/20" : ""}`}
                     >
                       {/* Heartbeat line for connected viewers */}
                       {viewer.approved && (
@@ -442,15 +523,37 @@ export function ShareActiveView({
                           </Button>
                         </div>
                       ) : (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="size-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all"
-                          onClick={() => onDisconnectViewer(viewer.id)}
-                          title="Disconnect viewer"
-                        >
-                          <X className="size-3.5" />
-                        </Button>
+                        <div className="flex gap-1 shrink-0 ml-2">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="size-8 text-amber-500 hover:text-amber-600 hover:bg-amber-50 hover:border-amber-300 dark:text-amber-400 dark:hover:bg-amber-950 dark:hover:border-amber-700 transition-all"
+                            onClick={() => onSpotlightViewer(viewer.id)}
+                            title={spotlightedViewer === viewer.id ? "Unspotlight" : "Spotlight viewer"}
+                          >
+                            <Star className={`size-3.5 ${spotlightedViewer === viewer.id ? "fill-current" : ""}`} />
+                          </Button>
+                          {raisedHands.has(viewer.id) ? (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="size-8 text-amber-500 hover:text-amber-600 hover:bg-amber-50 transition-all"
+                              onClick={() => onHostLowerHand(viewer.id)}
+                              title="Lower hand"
+                            >
+                              <Hand className="size-3.5" />
+                            </Button>
+                          ) : null}
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="size-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all"
+                            onClick={() => onDisconnectViewer(viewer.id)}
+                            title="Disconnect viewer"
+                          >
+                            <X className="size-3.5" />
+                          </Button>
+                        </div>
                       )}
                     </motion.div>
                   ))}

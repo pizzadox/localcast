@@ -212,6 +212,31 @@ export default function Home() {
     sendReaction,
  changePassword,
     cleanupAll,
+    // Annotations / Whiteboard
+    showAnnotationOverlay,
+    setShowAnnotationOverlay,
+    annotationTool,
+    setAnnotationTool,
+    annotationColor,
+    setAnnotationColor,
+    sendAnnotation,
+    annotations,
+    clearAnnotations,
+    annotationCanvasRef,
+    // Viewer Spotlight
+    spotlightedViewer,
+    spotlightViewer,
+    // Session Theme
+    roomTheme,
+    setRoomTheme,
+    // Connection Speed Test
+    speedTestResult,
+    connectionSpeedTest,
+    // Viewer Hand Raise
+    raisedHands,
+    raiseHand,
+    lowerHand,
+    hostLowerHand,
   } = useLocalCast();
 
   const isSession = isSharing || currentView === "watching";
@@ -333,7 +358,7 @@ export default function Home() {
               >
                 <MessageSquare className="size-4" />
                 {unreadCount > 0 && (
-                  <span className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                  <span className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white notification-badge">
                     {unreadCount > 9 ? "9+" : unreadCount}
                   </span>
                 )}
@@ -398,6 +423,10 @@ export default function Home() {
               onRoomPasswordChange={setRoomPassword}
               maxViewers={maxViewers}
               onMaxViewersChange={setMaxViewers}
+              roomTheme={roomTheme}
+              onRoomThemeChange={setRoomTheme}
+              speedTestResult={speedTestResult}
+              onConnectionSpeedTest={connectionSpeedTest}
               error={error}
               onBack={() => {
                 setCurrentView("home");
@@ -436,7 +465,20 @@ export default function Home() {
               onApproveViewer={approveViewer}
               onDenyViewer={denyViewer}
               onDisconnectViewer={disconnectViewer}
+              onSpotlightViewer={spotlightViewer}
+              onHostLowerHand={hostLowerHand}
+              spotlightedViewer={spotlightedViewer}
+              raisedHands={raisedHands}
               onStopSharing={stopSharing}
+              showAnnotationOverlay={showAnnotationOverlay}
+              setShowAnnotationOverlay={setShowAnnotationOverlay}
+              annotationTool={annotationTool}
+              setAnnotationTool={setAnnotationTool}
+              annotationColor={annotationColor}
+              setAnnotationColor={setAnnotationColor}
+              annotations={annotations}
+              clearAnnotations={clearAnnotations}
+              annotationCanvasRef={annotationCanvasRef}
             />
           )}
 
@@ -493,6 +535,10 @@ export default function Home() {
               onToggleFullscreen={toggleFullscreen}
               onLeaveRoom={leaveRoom}
               onSendReaction={sendReaction}
+              annotations={annotations}
+              annotationCanvasRef={annotationCanvasRef}
+              onRaiseHand={raiseHand}
+              onLowerHand={lowerHand}
             />
           )}
         </AnimatePresence>
@@ -522,7 +568,7 @@ export default function Home() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.5, duration: 0.4 }}
-        className="relative mt-auto border-t border-t-emerald-100/30 dark:border-t-emerald-900/20"
+        className="relative mt-auto border-t border-t-emerald-100/30 dark:border-t-emerald-900/20 footer-gradient-animate"
       >
         {/* Animated wave decoration at top of footer */}
         <div className="absolute -top-[19px] left-0 right-0 overflow-hidden pointer-events-none">
@@ -578,7 +624,7 @@ export default function Home() {
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col items-center gap-4 py-4">
-            <div className="rounded-xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-teal-50 p-4 shadow-lg shadow-emerald-500/10 dark:border-emerald-800 dark:from-emerald-950/80 dark:via-emerald-950/50 dark:to-teal-950/40">
+            <div className="rounded-xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-teal-50 p-4 shadow-lg shadow-emerald-500/10 dark:border-emerald-800 dark:from-emerald-950/80 dark:via-emerald-950/50 dark:to-teal-950/40 qr-glow">
               <QRCodeSVG
                 value={qrUrl}
                 size={200}

@@ -135,7 +135,7 @@ export function ChatPanel({
                     key={msg.id || `${msg.senderId}-${msg.timestamp}-${idx}`}
                     initial={{ opacity: 0, y: 12, scale: 0.94 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={{ duration: 0.3, type: "spring", stiffness: 400, damping: 25 }}
+                    transition={{ duration: 0.35, type: "spring", stiffness: 500, damping: 28 }}
                     className={`flex flex-col ${isOwn ? "items-end" : "items-start"}`}
                   >
                     {/* Show sender name only if different from previous */}
@@ -175,7 +175,7 @@ export function ChatPanel({
                     transition={{ duration: 0.2 }}
                     className={`flex items-center gap-2 ${isHost ? "justify-start" : "justify-end"}`}
                   >
-                    <div className="msg-bubble-other rounded-2xl rounded-bl-sm px-3 py-2">
+                    <div className="msg-bubble-other rounded-2xl rounded-bl-sm px-3 py-2 skeleton-shine">
                       <div className="typing-indicator text-muted-foreground">
                         <span />
                         <span />
@@ -211,7 +211,7 @@ export function ChatPanel({
                 size="icon"
                 onClick={onSend}
                 disabled={!input.trim()}
-                className="size-10 shrink-0 rounded-xl bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700 shadow-md shadow-emerald-500/20 transition-all disabled:opacity-40 disabled:shadow-none btn-3d"
+                className="size-10 shrink-0 rounded-xl bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700 shadow-md shadow-emerald-500/20 transition-all disabled:opacity-40 disabled:shadow-none btn-3d ${input.trim() ? "send-active" : ""}"
               >
                 <Send className="size-4" />
               </Button>

@@ -157,8 +157,9 @@ export function JoinView({
         </div>
 
         <CardHeader className="text-center">
+          {/* Animated scanning line effect around input area */}
           <motion.div
-            className="mx-auto mb-3 flex size-14 items-center justify-center rounded-2xl bg-teal-100 text-teal-600 dark:bg-teal-950 dark:text-teal-400 float-animation"
+            className="mx-auto mb-3 flex size-14 items-center justify-center rounded-2xl bg-teal-100 text-teal-600 dark:bg-teal-950 dark:text-teal-400 float-animation badge-pulse"
           >
             <Eye className="size-7" />
           </motion.div>
@@ -229,8 +230,8 @@ export function JoinView({
                   Room Code
                 </label>
 
-                {/* Segmented character inputs */}
-                <div className="segmented-input">
+                {/* Segmented character inputs with scan line effect */}
+                <div className="segmented-input scan-line-effect rounded-xl p-2">
                   {Array.from({ length: 6 }, (_, i) => (
                     <motion.input
                       key={i}
@@ -331,12 +332,12 @@ export function JoinView({
             <Button
               onClick={onJoinRoom}
               disabled={viewerInput.length !== 6 || waitingApproval}
-              className={`btn-disabled-enhanced relative w-full overflow-hidden bg-teal-600 text-white shadow-lg shadow-teal-500/25 hover:bg-teal-700 hover:shadow-xl hover:shadow-teal-500/30 transition-all dark:bg-teal-600 dark:hover:bg-teal-700 h-12 text-base font-semibold disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed ${viewerInput.length === 6 && !waitingApproval ? "animate-border-glow ring-pulse-enabled" : ""}`}
+              className={`btn-disabled-enhanced btn-elevated relative w-full overflow-hidden bg-teal-600 text-white shadow-lg shadow-teal-500/25 hover:bg-teal-700 hover:shadow-xl hover:shadow-teal-500/30 transition-all dark:bg-teal-600 dark:hover:bg-teal-700 h-12 text-base font-semibold disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed ${viewerInput.length === 6 && !waitingApproval ? "animate-border-glow ring-pulse-enabled glow-text" : ""}`}
               size="lg"
             >
-              <span className="absolute inset-0 overflow-hidden rounded-md">
+              <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-md">
                 <span
-                  className="absolute inset-0 -translate-x-full animate-[shimmer_2.5s_infinite]"
+                  className="pointer-events-none absolute inset-0 -translate-x-full animate-[shimmer_2.5s_infinite]"
                   style={{
                     background:
                       "linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)",

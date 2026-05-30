@@ -31,6 +31,33 @@ import {
 } from "lucide-react";
 
 import { pageVariants, staggerContainer, fadeInUp } from "./types";
+import { useState, useEffect } from "react";
+
+// Typing text animation component
+function TypingText({ text, delay = 50 }: { text: string; delay?: number }) {
+  const [displayed, setDisplayed] = useState("");
+  const [started, setStarted] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setStarted(true), 800);
+    return () => clearTimeout(timer);
+  }, []);
+  useEffect(() => {
+    if (!started) return;
+    if (displayed.length >= text.length) return;
+    const timer = setTimeout(() => {
+      setDisplayed(text.slice(0, displayed.length + 1));
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [displayed, started, text, delay]);
+  return (
+    <span>
+      {displayed}
+      {displayed.length < text.length && started && (
+        <span className="inline-block w-0.5 h-4 bg-emerald-500/60 animate-pulse ml-0.5 align-middle" style={{ animationDuration: "0.8s" }} />
+      )}
+    </span>
+  );
+}
 
 interface HomeViewProps {
   onNavigate: (view: "share" | "join") => void;
@@ -146,7 +173,7 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
               transition={{ delay: 0.1, duration: 0.5 }}
               className="text-4xl font-black tracking-tight sm:text-6xl text-shadow-sm"
             >
-              <span className="text-gradient text-shadow-emerald">LocalCast</span>
+              <span className="text-gradient-animate text-shadow-emerald glow-text">LocalCast</span>
             </motion.h1>
             <motion.p
               initial={{ opacity: 0 }}
@@ -154,7 +181,7 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
               transition={{ delay: 0.2, duration: 0.4 }}
               className="mt-3 max-w-lg mx-auto text-lg text-muted-foreground"
             >
-              Share your screen instantly over your local network.
+              <TypingText text="Share your screen instantly over your local network." delay={40} />
             </motion.p>
             <motion.p
               initial={{ opacity: 0 }}
@@ -258,7 +285,7 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
       >
         {/* Share Screen Card */}
         <motion.div variants={fadeInUp}>
-          <Card className="glass-card corner-decoration shimmer-card group relative overflow-hidden cursor-pointer border-2 transition-transform duration-300 hover:scale-[1.01]">
+          <Card className="glass-card corner-decoration shimmer-card morph-card group relative overflow-hidden cursor-pointer border-2 transition-transform duration-300 hover:scale-[1.01]">
             {/* Top accent gradient */}
             <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500 opacity-80 transition-opacity group-hover:opacity-100" />
             <CardHeader className="pt-6">
@@ -281,7 +308,7 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
                 className="btn-press relative w-full overflow-hidden bg-emerald-600 text-white shadow-lg shadow-emerald-500/25 hover:bg-emerald-700 hover:shadow-xl hover:shadow-emerald-500/30 transition-all dark:bg-emerald-600 dark:hover:bg-emerald-700"
                 size="lg"
               >
-                <span className="absolute inset-0 overflow-hidden rounded-md">
+                <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-md">
                   <span
                     className="absolute inset-0 -translate-x-full animate-[shimmer_2.5s_infinite]"
                     style={{
@@ -300,7 +327,7 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
 
         {/* View Screen Card */}
         <motion.div variants={fadeInUp}>
-          <Card className="glass-card corner-decoration shimmer-card group relative overflow-hidden cursor-pointer border-2 transition-transform duration-300 hover:scale-[1.01]">
+          <Card className="glass-card corner-decoration shimmer-card morph-card group relative overflow-hidden cursor-pointer border-2 transition-transform duration-300 hover:scale-[1.01]">
             <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-teal-500 via-cyan-400 to-teal-500 opacity-80 transition-opacity group-hover:opacity-100" />
             <CardHeader className="pt-6">
               <div className="mb-3 flex size-14 items-center justify-center rounded-2xl bg-teal-100 text-teal-600 transition-all duration-300 group-hover:bg-teal-200 group-hover:shadow-lg group-hover:shadow-teal-500/20 dark:bg-teal-950 dark:text-teal-400 dark:group-hover:bg-teal-900">
@@ -322,7 +349,7 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
                 className="btn-press relative w-full overflow-hidden bg-teal-600 text-white shadow-lg shadow-teal-500/25 hover:bg-teal-700 hover:shadow-xl hover:shadow-teal-500/30 transition-all dark:bg-teal-600 dark:hover:bg-teal-700"
                 size="lg"
               >
-                <span className="absolute inset-0 overflow-hidden rounded-md">
+                <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-md">
                   <span
                     className="absolute inset-0 -translate-x-full animate-[shimmer_2.5s_infinite]"
                     style={{

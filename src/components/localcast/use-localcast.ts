@@ -26,6 +26,11 @@ import type {
   ConnectionLogEntry,
   ShareMode,
   ViewerConnectionQuality,
+  SessionTheme,
+  AnnotationTool,
+  AnnotationEvent,
+  SpeedTestQuality,
+  SpeedTestResult,
 } from "./types";
 import {
   ICE_CONFIG,
@@ -156,6 +161,36 @@ export interface UseLocalCastReturn {
 
   // Export Session Stats
   exportSessionStats: () => string;
+
+  // Annotations / Whiteboard
+  showAnnotationOverlay: boolean;
+  setShowAnnotationOverlay: (v: boolean) => void;
+  annotationTool: AnnotationTool;
+  setAnnotationTool: (v: AnnotationTool) => void;
+  annotationColor: string;
+  setAnnotationColor: (v: string) => void;
+  sendAnnotation: (annotation: AnnotationEvent) => void;
+  annotations: AnnotationEvent[];
+  clearAnnotations: () => void;
+  annotationCanvasRef: RefObject<HTMLCanvasElement | null>;
+
+  // Viewer Spotlight
+  spotlightedViewer: string | null;
+  spotlightViewer: (viewerId: string) => void;
+
+  // Session Theme
+  roomTheme: SessionTheme;
+  setRoomTheme: (v: SessionTheme) => void;
+
+  // Connection Speed Test
+  speedTestResult: SpeedTestResult;
+  connectionSpeedTest: () => Promise<void>;
+
+  // Viewer Hand Raise
+  raisedHands: Set<string>;
+  raiseHand: () => void;
+  lowerHand: () => void;
+  hostLowerHand: (viewerId: string) => void;
 
   // Refs
   videoRef: RefObject<HTMLVideoElement | null>;
@@ -315,6 +350,32 @@ export function useLocalCast(): UseLocalCastReturn {
   const troubleshootingToastShownRef = useRef(false);
   const poorQualityViewerSinceRef = useRef<number>(0);
 
+  // ── Annotations / Whiteboard ──
+  const [showAnnotationOverlay, setShowAnnotationOverlay] = useState(false);
+  const [annotationTool, setAnnotationTool] = useState<AnnotationTool>("pen");
+  const [annotationColor, setAnnotationColor] = useState("#ef4444");
+  const [annotations, setAnnotations] = useState<AnnotationEvent[]>([]);
+  const annotationCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // ── Viewer Spotlight ──
+  const [spotlightedViewer, setSpotlightedViewer] = useState<string | null>(null);
+
+  // ── Session Theme ──
+  const [roomTheme, setRoomThemeState] = useState<SessionTheme>("default");
+  const setRoomTheme = useCallback((theme: SessionTheme) => {
+    setRoomThemeState(theme);
+  }, []);
+
+  // ── Connection Speed Test ──
+  const [speedTestResult, setSpeedTestResult] = useState<SpeedTestResult>({
+    latencyMs: 0,
+    quality: "idle",
+    timestamp: 0,
+  });
+
+  // ── Viewer Hand Raise ──
+  const [raisedHands, setRaisedHands] = useState<Set<string>>(new Set());
+
   // ═══════════════════════════════════════════════════════════════════════
   // REFS
   // ═══════════════════════════════════════════════════════════════════════
@@ -322,6 +383,10 @@ export function useLocalCast(): UseLocalCastReturn {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const previewVideoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const annotationCanvasRef_local = useRef<HTMLCanvasElement | null>(null);
+
+  // Merge refs (annotationCanvasRef is both a local ref and an exposed ref)
+  const annotationCanvasRef = annotationCanvasRef_local;
 
   const socketRef = useRef<Socket | null>(null);
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
@@ -490,6 +555,119 @@ export function useLocalCast(): UseLocalCastReturn {
     toast.success(newPassword ? "Room password updated" : "Room password removed");
   }, [roomId]);
 
+  // ── Send Annotation (host → server → viewers) ──
+  const sendAnnotation = useCallback((annotation: AnnotationEvent) => {
+    if (!socketRef.current?.connected || !roomId) return;
+    socketRef.current.emit("ANNOTATION", { roomId, annotation });
+  }, [roomId]);
+
+  // ── Clear Annotations ──
+  const clearAnnotations = useCallback(() => {
+    setAnnotations([]);
+    if (socketRef.current?.connected && roomId) {
+      const clearEvent: AnnotationEvent = { type: "clear", points: [], color: "", width: 0, tool: "pen" };
+      socketRef.current.emit("ANNOTATION", { roomId, annotation: clearEvent });
+    }
+    const canvas = annotationCanvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext("2d");
+      if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  }, [roomId]);
+
+  // ── Spotlight Viewer (host action) ──
+  const spotlightViewer = useCallback((viewerId: string) => {
+    if (!socketRef.current?.connected || !roomId) return;
+    setSpotlightedViewer((prev) => prev === viewerId ? null : viewerId);
+    socketRef.current.emit("SPOTLIGHT_VIEWER", { roomId, viewerId });
+  }, [roomId]);
+
+  // ── Connection Speed Test ──
+  const connectionSpeedTest = useCallback(async () => {
+    setSpeedTestResult({ latencyMs: 0, quality: "testing", timestamp: Date.now() });
+
+    // Create a temporary socket for the speed test
+    try {
+      const testSocket = io("/?XTransformPort=3003", {
+        reconnection: false,
+        timeout: 10000,
+      });
+
+      const pings: number[] = [];
+
+      await new Promise<void>((resolve) => {
+        testSocket.on("connect", () => {
+          let count = 0;
+          const maxPings = 5;
+
+          const doPing = () => {
+            if (count >= maxPings) {
+              testSocket.disconnect();
+              resolve();
+              return;
+            }
+            const start = Date.now();
+            testSocket.emit("PING", () => {
+              const rt = Date.now() - start;
+              pings.push(rt);
+              count++;
+              setTimeout(doPing, 100);
+            });
+          };
+          doPing();
+        });
+
+        testSocket.on("connect_error", () => {
+          testSocket.disconnect();
+          resolve();
+        });
+      });
+
+      if (pings.length > 0) {
+        const avgLatency = Math.round(pings.reduce((a, b) => a + b, 0) / pings.length);
+        let quality: SpeedTestQuality;
+        if (avgLatency < 30) quality = "excellent";
+        else if (avgLatency < 60) quality = "good";
+        else if (avgLatency < 120) quality = "fair";
+        else quality = "poor";
+
+        setSpeedTestResult({ latencyMs: avgLatency, quality, timestamp: Date.now() });
+        toast.success(`Connection: ${quality.charAt(0).toUpperCase() + quality.slice(1)} (${avgLatency}ms avg)`);
+      } else {
+        setSpeedTestResult({ latencyMs: 0, quality: "poor", timestamp: Date.now() });
+        toast.error("Could not reach signaling server");
+      }
+    } catch {
+      setSpeedTestResult({ latencyMs: 0, quality: "poor", timestamp: Date.now() });
+      toast.error("Speed test failed");
+    }
+  }, []);
+
+  // ── Raise Hand (viewer action) ──
+  const raiseHand = useCallback(() => {
+    if (!socketRef.current?.connected || !roomId) return;
+    socketRef.current.emit("RAISE_HAND", { roomId });
+    toast.info("Hand raised ✋");
+  }, [roomId]);
+
+  // ── Lower Hand (viewer action) ──
+  const lowerHand = useCallback(() => {
+    if (!socketRef.current?.connected || !roomId) return;
+    socketRef.current.emit("LOWER_HAND", { roomId });
+  }, [roomId]);
+
+  // ── Host Lower Hand (host action) ──
+  const hostLowerHand = useCallback((viewerId: string) => {
+    if (!socketRef.current?.connected || !roomId) return;
+    socketRef.current.emit("HOST_LOWER_HAND", { roomId, viewerId });
+    setRaisedHands((prev) => {
+      const next = new Set(prev);
+      next.delete(viewerId);
+      return next;
+    });
+    toast.info("Hand lowered");
+  }, [roomId]);
+
   // ── Derived ──
   const activePeerCount = viewers.filter((v) => v.approved).length;
   const pipSupported =
@@ -589,6 +767,11 @@ export function useLocalCast(): UseLocalCastReturn {
       "VIEWER_COUNT_UPDATE",
       "ROOM_SETTINGS_UPDATED",
       "ROOM_FULL",
+      "ANNOTATION",
+      "SPOTLIGHT_VIEWER",
+      "VIEWER_HAND_RAISED",
+      "VIEWER_HAND_LOWERED",
+      "HAND_LOWERED_BY_HOST",
     ];
     for (const e of events) {
       socket.removeAllListeners(e);
@@ -713,6 +896,14 @@ export function useLocalCast(): UseLocalCastReturn {
     setMaxViewers(0);
     setConnectionHealthScore(100);
     shareStartExportRef.current = 0;
+    setShowAnnotationOverlay(false);
+    setAnnotationTool("pen");
+    setAnnotationColor("#ef4444");
+    setAnnotations([]);
+    setSpotlightedViewer(null);
+    setRoomThemeState("default");
+    setSpeedTestResult({ latencyMs: 0, quality: "idle", timestamp: 0 });
+    setRaisedHands(new Set());
     if (healthIntervalRef.current) {
       clearInterval(healthIntervalRef.current);
       healthIntervalRef.current = null;
@@ -1045,7 +1236,7 @@ export function useLocalCast(): UseLocalCastReturn {
 
       socket.on("connect", () => {
         // Create room
-        socket.emit("CREATE_ROOM", { requireApproval, password: roomPassword, maxViewers });
+        socket.emit("CREATE_ROOM", { requireApproval, password: roomPassword, maxViewers, theme: roomTheme });
 
         socket.on("ROOM_CREATED", (data: { roomId: string; roomInfo?: { hostId: string } }) => {
           setRoomId(data.roomId);
@@ -1135,6 +1326,35 @@ export function useLocalCast(): UseLocalCastReturn {
             );
           }, 5000);
           if (soundEnabled) playNotificationSound("reaction");
+        });
+
+        socket.on("ANNOTATION", (data: { roomId: string; annotation: AnnotationEvent }) => {
+          const ann = data.annotation;
+          if (ann.type === "clear") {
+            setAnnotations([]);
+          } else {
+            setAnnotations((prev) => [...prev, ann]);
+          }
+        });
+
+        socket.on("SPOTLIGHT_VIEWER", (data: { roomId: string; viewerId: string }) => {
+          setSpotlightedViewer(data.viewerId);
+        });
+
+        socket.on("VIEWER_HAND_RAISED", (data: { roomId: string; viewerId: string }) => {
+          setRaisedHands((prev) => new Set(prev).add(data.viewerId));
+          const viewer = viewers.find((v) => v.id === data.viewerId);
+          const name = viewer?.deviceName || "A viewer";
+          toast.info(`${name} raised their hand ✋`);
+          if (soundEnabled) playNotificationSound("reaction");
+        });
+
+        socket.on("VIEWER_HAND_LOWERED", (data: { roomId: string; viewerId: string }) => {
+          setRaisedHands((prev) => {
+            const next = new Set(prev);
+            next.delete(data.viewerId);
+            return next;
+          });
         });
 
         socket.on("ERROR", (data: { message: string }) => {
@@ -1350,6 +1570,29 @@ export function useLocalCast(): UseLocalCastReturn {
           ]);
           setUnreadCount((c) => c + 1);
           if (soundEnabled) playNotificationSound("chat");
+        });
+
+        socket.on("ANNOTATION", (data: { roomId: string; annotation: AnnotationEvent }) => {
+          const ann = data.annotation;
+          if (ann.type === "clear") {
+            setAnnotations([]);
+          } else {
+            setAnnotations((prev) => [...prev, ann]);
+          }
+        });
+
+        socket.on("SPOTLIGHT_VIEWER", (data: { roomId: string; viewerId: string }) => {
+          setSpotlightedViewer(data.viewerId);
+        });
+
+        socket.on("HAND_LOWERED_BY_HOST", () => {
+          toast.info("Host lowered your hand");
+        });
+
+        socket.on("ROOM_SETTINGS_UPDATED", (data: { settings: { theme?: string } }) => {
+          if (data.settings?.theme) {
+            setRoomThemeState(data.settings.theme as SessionTheme);
+          }
         });
 
         socket.on("ERROR", (data: { message: string }) => {
@@ -1921,6 +2164,36 @@ export function useLocalCast(): UseLocalCastReturn {
     sendReaction,
     changePassword,
     cleanupAll,
+
+    // Annotations / Whiteboard
+    showAnnotationOverlay,
+    setShowAnnotationOverlay,
+    annotationTool,
+    setAnnotationTool,
+    annotationColor,
+    setAnnotationColor,
+    sendAnnotation,
+    annotations,
+    clearAnnotations,
+    annotationCanvasRef,
+
+    // Viewer Spotlight
+    spotlightedViewer,
+    spotlightViewer,
+
+    // Session Theme
+    roomTheme,
+    setRoomTheme,
+
+    // Connection Speed Test
+    speedTestResult,
+    connectionSpeedTest,
+
+    // Viewer Hand Raise
+    raisedHands,
+    raiseHand,
+    lowerHand,
+    hostLowerHand,
   };
 }
 
