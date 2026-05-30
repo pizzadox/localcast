@@ -591,7 +591,7 @@ export default function Home() {
           <div className="flex items-center gap-1.5">
             <Monitor className="size-3" />
             <span className="font-medium">LocalCast</span>
-            <span className="text-muted-foreground/50">v1.0.4</span>
+            <span className="text-muted-foreground/50">v1.0.5</span>
           </div>
           <div className="hidden items-center gap-1 sm:flex">
             <Shield className="size-3" />

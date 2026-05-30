@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.5] - 2025-05-30
+
+### Fixed
+- **Critical: Stale closure in reconnection logic** — The `getOrCreateSocket` callback captured `isSharing` and `currentView` by value (empty dependency array), so the disconnect handler always saw `isSharing=false` and `currentView="home"`. Socket auto-reconnect NEVER triggered. Fixed by using refs (`isSharingRef`, `currentViewRef`) that stay in sync with state.
+- **Critical: `broadcastViewerCount(room)` missing argument** — Line 264 in signaling server called `broadcastViewerCount(room)` with 1 arg instead of 2 (`broadcastViewerCount(io, room)`). This caused a runtime crash every time a viewer was kicked/disconnected, breaking all subsequent room operations.
+- **Black screen on viewer side** — `ontrack` handler set `srcObject` but never called `video.play()`. With `muted=false`, autoplay is blocked in most browsers. Now explicitly calls `play()` with a fallback that mutes and retries.
+- **Black screen on broadcaster preview** — Added explicit `play()` call when attaching local stream to preview video element.
+- **Missing `instrumentation.ts`** — The file was referenced but didn't exist, so the signaling server only started via the `/api/start-signal` endpoint (called on page load). Recreated to ensure the signaling server starts with the Next.js process lifecycle.
+
+### Changed
+- **WebRTC ICE servers** — Added 3 more Google STUN servers + Metered.ca free TURN relay servers for better NAT traversal. TURN relays ensure WebRTC works even when both peers are behind symmetric NATs. Added `iceCandidatePoolSize: 10`.
+- **Connection quality thresholds** — Adjusted for proxy/sandbox environments: Excellent < 150ms (was 80ms), Good < 350ms (was 200ms), Fair < 600ms (was 400ms).
+- **Socket.IO timeout** — Increased from 10s to 20s for main connection, 15s for speed test.
+- **Transport preference** — Added explicit `transports: ["websocket", "polling"]` to prefer WebSocket with polling fallback.
+
+---
+
 ## [1.0.3] - 2025-06-30
 
 ### Fixed

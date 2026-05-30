@@ -119,12 +119,33 @@ export type EventLogEntry = ConnectionLogEntry;
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-/** WebRTC ICE configuration (public STUN servers for local network). */
+/** WebRTC ICE configuration — multiple STUN servers + free TURN relays for NAT traversal. */
 export const ICE_CONFIG: RTCConfiguration = {
   iceServers: [
+    // Google STUN servers
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
+    { urls: "stun:stun2.l.google.com:19302" },
+    { urls: "stun:stun3.l.google.com:19302" },
+    { urls: "stun:stun4.l.google.com:19302" },
+    // Free TURN relay servers (Metered.ca free tier)
+    {
+      urls: "turn:global.relay.metered.ca:80",
+      username: "e9db00c0f47b84b6e07f3a1b",
+      credential: "nST2Ji+6vGXBYPAW",
+    },
+    {
+      urls: "turn:global.relay.metered.ca:443",
+      username: "e9db00c0f47b84b6e07f3a1b",
+      credential: "nST2Ji+6vGXBYPAW",
+    },
+    {
+      urls: "turn:global.relay.metered.ca:443?transport=tcp",
+      username: "e9db00c0f47b84b6e07f3a1b",
+      credential: "nST2Ji+6vGXBYPAW",
+    },
   ],
+  iceCandidatePoolSize: 10,
 };
 
 /** Quality presets mapping preset key → resolution / fps / bitrate. */

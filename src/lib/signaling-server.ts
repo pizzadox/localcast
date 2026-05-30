@@ -261,7 +261,7 @@ export function ensureSignalingServer(): void {
         }
         room.viewers.delete(viewerId)
         socketToRoom.delete(viewerId)
-        broadcastViewerCount(room)
+        broadcastViewerCount(io, room)
         console.log(`[${formatTimestamp()}] KICK     room=${room.id} viewer=${viewerId} by host=${socket.id}`)
         callback?.({ success: true })
       } catch (err) {

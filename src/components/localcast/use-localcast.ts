@@ -397,6 +397,12 @@ export function useLocalCast(): UseLocalCastReturn {
   const reconnectAttemptRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const intentionalDisconnectRef = useRef(false);
+  const isSharingRef = useRef(false);
+  const currentViewRef = useRef<View>("home");
+
+  // Keep refs in sync with state
+  useEffect(() => { isSharingRef.current = isSharing; }, [isSharing]);
+  useEffect(() => { currentViewRef.current = currentView; }, [currentView]);
 
   // ── Latency ──
   const lastPingRef = useRef(0);
@@ -586,7 +592,8 @@ export function useLocalCast(): UseLocalCastReturn {
     try {
       const testSocket = io("/?XTransformPort=3003", {
         reconnection: false,
-        timeout: 10000,
+        timeout: 15000,
+        transports: ["websocket", "polling"],
       });
 
       const pings: number[] = [];
@@ -622,10 +629,10 @@ export function useLocalCast(): UseLocalCastReturn {
       if (pings.length > 0) {
         const avgLatency = Math.round(pings.reduce((a, b) => a + b, 0) / pings.length);
         let quality: SpeedTestQuality;
-        // Thresholds account for proxy overhead (Caddy/gateway adds ~150-300ms in sandbox)
-        if (avgLatency < 80) quality = "excellent";
-        else if (avgLatency < 200) quality = "good";
-        else if (avgLatency < 400) quality = "fair";
+        // Generous thresholds: sandbox Caddy proxy adds 150-400ms overhead
+        if (avgLatency < 150) quality = "excellent";
+        else if (avgLatency < 350) quality = "good";
+        else if (avgLatency < 600) quality = "fair";
         else quality = "poor";
 
         setSpeedTestResult({ latencyMs: avgLatency, quality, timestamp: Date.now() });
@@ -685,8 +692,9 @@ export function useLocalCast(): UseLocalCastReturn {
 
     intentionalDisconnectRef.current = false;
     const socket = io("/?XTransformPort=3003", {
-      reconnection: false,
-      timeout: 10000,
+      reconnection: false, // We handle reconnection manually with refs
+      timeout: 20000,
+      transports: ["websocket", "polling"], // Prefer WebSocket, fallback to polling
     });
 
     // Auto-reconnect with exponential backoff
@@ -700,10 +708,9 @@ export function useLocalCast(): UseLocalCastReturn {
 
     socket.on("disconnect", (reason) => {
       if (!intentionalDisconnectRef.current) {
-        // Only auto-reconnect when we believe we're in an active session
-        // We check the refs to avoid stale closures
-        const sharing = isSharing;
-        const view = currentView;
+        // Use refs to avoid stale closures
+        const sharing = isSharingRef.current;
+        const view = currentViewRef.current;
         if (sharing || view === "watching" || view === "join") {
           const attempt = reconnectAttemptRef.current;
           const delay = Math.min(1000 * Math.pow(2, attempt), 30000);
@@ -1074,6 +1081,16 @@ export function useLocalCast(): UseLocalCastReturn {
         pc.ontrack = (event) => {
           if (videoRef.current && event.streams[0]) {
             videoRef.current.srcObject = event.streams[0];
+            // Explicitly play — autoplay with muted=false may be blocked
+            videoRef.current.play().catch(() => {
+              // Autoplay blocked — mute and retry
+              if (videoRef.current) {
+                videoRef.current.muted = true;
+                videoRef.current.play().catch(() => {
+                  toast.info("Click the unmute button to enable audio");
+                });
+              }
+            });
           }
         };
 
@@ -1735,6 +1752,7 @@ export function useLocalCast(): UseLocalCastReturn {
       localStreamRef.current
     ) {
       previewVideoRef.current.srcObject = localStreamRef.current;
+      previewVideoRef.current.play().catch(() => {});
     }
   }, [currentView, isSharing]);
 
