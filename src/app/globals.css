@@ -263,6 +263,118 @@
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: rgba(5, 150, 105, 0.4);
   }
+
+  /* ===== NEW: Entrance & Notification Animations ===== */
+
+  .animate-fade-in-up {
+    animation: fade-in-up 0.4s ease-out;
+  }
+
+  .animate-slide-in-right {
+    animation: slide-in-right 0.3s ease-out;
+  }
+
+  /* ===== NEW: Glow Effect for Active Elements ===== */
+
+  .glow-emerald {
+    box-shadow: 0 0 15px rgba(5, 150, 105, 0.15), 0 0 30px rgba(5, 150, 105, 0.08);
+  }
+  .dark .glow-emerald {
+    box-shadow: 0 0 20px rgba(5, 150, 105, 0.25), 0 0 40px rgba(5, 150, 105, 0.12);
+  }
+
+  /* ===== NEW: Stat Card ===== */
+
+  .stat-card {
+    border-radius: 0.75rem;
+    padding: 0.75rem;
+    background: rgba(5, 150, 105, 0.04);
+    border: 1px solid rgba(5, 150, 105, 0.1);
+    transition: all 0.2s ease;
+  }
+  .stat-card:hover {
+    background: rgba(5, 150, 105, 0.08);
+    border-color: rgba(5, 150, 105, 0.2);
+  }
+  .dark .stat-card {
+    background: rgba(5, 150, 105, 0.08);
+    border-color: rgba(5, 150, 105, 0.15);
+  }
+  .dark .stat-card:hover {
+    background: rgba(5, 150, 105, 0.14);
+    border-color: rgba(5, 150, 105, 0.3);
+  }
+
+  /* ===== NEW: Connection Quality Colors ===== */
+
+  .quality-good { color: #059669; }
+  .quality-fair { color: #d97706; }
+  .quality-poor { color: #dc2626; }
+
+  /* ===== NEW: Room Code Display ===== */
+
+  .room-code-display {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.3em;
+    text-shadow: 0 0 10px rgba(5, 150, 105, 0.15);
+  }
+
+  /* ===== NEW: Video Container ===== */
+
+  .video-container {
+    position: relative;
+    background: #000;
+    overflow: hidden;
+  }
+  .video-container::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    pointer-events: none;
+    border-radius: inherit;
+  }
+
+  /* ===== NEW: Floating Control Bar ===== */
+
+  .control-bar {
+    border-radius: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  }
+  .dark .control-bar {
+    background: rgba(15, 23, 42, 0.85);
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  /* ===== NEW: Viewer List Item Enter Animation ===== */
+
+  .viewer-item-enter {
+    animation: viewer-enter 0.3s ease-out;
+  }
+
+  /* ===== NEW: Shimmer Loading Placeholder ===== */
+
+  .shimmer-loading {
+    background: linear-gradient(90deg,
+      rgba(128, 128, 128, 0.08) 25%,
+      rgba(128, 128, 128, 0.15) 50%,
+      rgba(128, 128, 128, 0.08) 75%);
+    background-size: 200% 100%;
+    animation: shimmer-loading 1.5s infinite;
+  }
+  .dark .shimmer-loading {
+    background: linear-gradient(90deg,
+      rgba(255, 255, 255, 0.03) 25%,
+      rgba(255, 255, 255, 0.08) 50%,
+      rgba(255, 255, 255, 0.03) 75%);
+    background-size: 200% 100%;
+  }
 }
 
 @keyframes dot-pulse {
@@ -289,4 +401,24 @@
 @keyframes count-bounce {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.2); }
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes viewer-enter {
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes shimmer-loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
