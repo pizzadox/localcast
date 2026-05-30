@@ -158,9 +158,135 @@
       radial-gradient(ellipse at 80% 20%, rgba(13, 148, 136, 0.1) 0%, transparent 50%),
       radial-gradient(ellipse at 50% 80%, rgba(5, 150, 105, 0.08) 0%, transparent 50%);
   }
+
+  /* Animated gradient border */
+  .gradient-border-animated {
+    position: relative;
+    border-radius: 1rem;
+    overflow: hidden;
+  }
+  .gradient-border-animated::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 2px;
+    background: linear-gradient(135deg, #059669, #0d9488, #059669, #0d9488);
+    background-size: 300% 300%;
+    animation: gradient-rotate 4s ease infinite;
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    -webkit-mask-composite: xor;
+    pointer-events: none;
+  }
+
+  /* Shimmer/shine effect for buttons */
+  .btn-shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-shimmer::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -60%;
+    width: 40%;
+    height: 200%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+    transform: skewX(-20deg);
+    animation: shimmer 3s ease-in-out infinite;
+  }
+
+  /* Pulsing rings animation (waiting state) */
+  .pulse-rings {
+    position: relative;
+  }
+  .pulse-rings::before,
+  .pulse-rings::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    opacity: 0;
+    animation: pulse-ring 2s ease-out infinite;
+  }
+  .pulse-rings::after {
+    animation-delay: 1s;
+  }
+
+  /* Glass morphism effect */
+  .glass {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+  .dark .glass {
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  /* Dot pattern background for hero */
+  .dot-pattern {
+    background-image: radial-gradient(circle, rgba(5, 150, 105, 0.08) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  .dark .dot-pattern {
+    background-image: radial-gradient(circle, rgba(5, 150, 105, 0.15) 1px, transparent 1px);
+  }
+
+  /* Viewer list colored left borders */
+  .viewer-approved {
+    border-left: 3px solid #059669;
+  }
+  .viewer-pending {
+    border-left: 3px solid #eab308;
+  }
+
+  /* Count bounce animation */
+  .count-bounce {
+    animation: count-bounce 0.3s ease;
+  }
+
+  /* Custom scrollbar for viewer list */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(5, 150, 105, 0.2);
+    border-radius: 2px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(5, 150, 105, 0.4);
+  }
 }
 
 @keyframes dot-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.5; transform: scale(0.85); }
+}
+
+@keyframes gradient-rotate {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes shimmer {
+  0% { left: -60%; }
+  100% { left: 120%; }
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+@keyframes count-bounce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
 }

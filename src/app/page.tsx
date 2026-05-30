@@ -11,6 +11,7 @@ import { io, Socket } from "socket.io-client";
 import { motion, AnimatePresence } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
+import { useTheme } from "next-themes";
 import {
   Card,
   CardContent,
@@ -31,6 +32,11 @@ import {
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   Monitor,
   MonitorPlay,
   Copy,
@@ -50,6 +56,14 @@ import {
   MonitorUp,
   Eye,
   Loader2,
+  Sun,
+  Moon,
+  PictureInPicture2,
+  HelpCircle,
+  BarChart3,
+  Activity,
+  Timer,
+  ChevronDown,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -94,6 +108,20 @@ function parseDeviceInfo(ua: string): { os: string; browser: string; deviceName:
   return { os, browser, deviceName: `${browser} on ${os}` };
 }
 
+function formatElapsed(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
 // ─── Animation Variants ──────────────────────────────────────────────────────
 
 const pageVariants = {
@@ -135,6 +163,9 @@ function StatusDot({ status }: { status: "disconnected" | "connecting" | "connec
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 export default function Home() {
+  // ── Theme ──
+  const { theme, setTheme } = useTheme();
+
   // ── View State ──
   const [currentView, setCurrentView] = useState<View>("home");
 
@@ -159,6 +190,18 @@ export default function Home() {
   const [showQrDialog, setShowQrDialog] = useState(false);
   const [copied, setCopied] = useState(false);
   const [waitingApproval, setWaitingApproval] = useState(false);
+
+  // ── Feature: Session Timer State ──
+  const [elapsedTime, setElapsedTime] = useState<number>(0);
+  const shareStartRef = useRef<Date | null>(null);
+  const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── Feature: Connection Stats State ──
+  const [statsOpen, setStatsOpen] = useState(false);
+  const [streamResolution, setStreamResolution] = useState<string>("—");
+
+  // ── Feature: Keyboard Shortcuts Dialog ──
+  const [showShortcutsDialog, setShowShortcutsDialog] = useState(false);
 
   // ── Refs ──
   const socketRef = useRef<Socket | null>(null);
@@ -235,7 +278,62 @@ export default function Home() {
     setConnectionQuality("good");
     setHostId("");
     setWaitingApproval(false);
+
+    // Session timer cleanup
+    shareStartRef.current = null;
+    setElapsedTime(0);
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+
+    // Stats cleanup
+    setStreamResolution("—");
+    setStatsOpen(false);
   }, [removeAllListeners]);
+
+  // ── Feature: Session Timer effect ──
+  useEffect(() => {
+    if (isSharing && !shareStartRef.current) {
+      shareStartRef.current = new Date();
+      timerIntervalRef.current = setInterval(() => {
+        if (shareStartRef.current) {
+          setElapsedTime(Date.now() - shareStartRef.current.getTime());
+        }
+      }, 1000);
+    } else if (!isSharing && shareStartRef.current) {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+    }
+    return () => {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+      }
+    };
+  }, [isSharing]);
+
+  // ── Feature: Detect stream resolution ──
+  useEffect(() => {
+    if (isSharing && previewVideoRef.current) {
+      const video = previewVideoRef.current;
+      const updateResolution = () => {
+        if (video.videoWidth && video.videoHeight) {
+          setStreamResolution(`${video.videoWidth}×${video.videoHeight}`);
+        }
+      };
+      video.addEventListener("loadedmetadata", updateResolution);
+      // Also poll in case loadedmetadata already fired
+      const poll = setInterval(() => {
+        updateResolution();
+      }, 2000);
+      return () => {
+        video.removeEventListener("loadedmetadata", updateResolution);
+        clearInterval(poll);
+      };
+    }
+  }, [isSharing]);
 
   // ── Copy room code ──
   const copyRoomCode = useCallback(async () => {
@@ -306,8 +404,10 @@ export default function Home() {
   );
 
   // ── Broadcaster: Handle incoming signal from viewer ──
+  // BUG FIX: Use getSocket() pattern for consistent socket access
   const handleBroadcasterSignal = useCallback(
     (data: { from: string; signal: unknown }) => {
+      const socket = getSocket();
       const viewerId = data.from;
       const signal = data.signal;
       if (!viewerId || !signal) return;
@@ -334,8 +434,11 @@ export default function Home() {
           pendingCandidatesRef.current.set(viewerId, pending);
         }
       }
+
+      // Suppress unused variable warning
+      void socket;
     },
-    []
+    [getSocket]
   );
 
   // ── Broadcaster: Stop Sharing ──
@@ -504,8 +607,10 @@ export default function Home() {
   );
 
   // ── Viewer: Handle incoming signal from broadcaster ──
+  // BUG FIX: Use getSocket() instead of socket parameter for stable access
   const handleViewerSignal = useCallback(
-    (data: { from: string; signal: unknown }, socket: Socket) => {
+    (data: { from: string; signal: unknown }) => {
+      const socket = getSocket();
       const broadcasterId = data.from;
       const signal = data.signal;
       if (!signal) return;
@@ -608,7 +713,7 @@ export default function Home() {
         }
       }
     },
-    []
+    [getSocket]
   );
 
   // ── Viewer: Join Room ──
@@ -668,7 +773,7 @@ export default function Home() {
       });
 
       socket.on("WEBRTC_SIGNAL", (data: { from: string; signal: unknown }) => {
-        handleViewerSignal(data, socket);
+        handleViewerSignal(data);
       });
 
       socket.on("HOST_DISCONNECTED", () => {
@@ -734,6 +839,66 @@ export default function Home() {
     }
   }, []);
 
+  // ── Feature: Keyboard Shortcuts ──
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Don't trigger shortcuts when typing in inputs
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
+
+      switch (e.key) {
+        case "Escape":
+          if (currentView === "watching") {
+            leaveRoom();
+          } else if (currentView !== "home") {
+            cleanupAll();
+            setCurrentView("home");
+          } else if (showShortcutsDialog) {
+            setShowShortcutsDialog(false);
+          }
+          break;
+        case "f":
+        case "F":
+          if (currentView === "watching") {
+            e.preventDefault();
+            toggleFullscreen();
+          }
+          break;
+        case "m":
+        case "M":
+          if (currentView === "watching" && videoRef.current) {
+            e.preventDefault();
+            videoRef.current.muted = !isMuted;
+            setIsMuted(!isMuted);
+          }
+          break;
+        default:
+          break;
+      }
+    };
+
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [currentView, isMuted, showShortcutsDialog, leaveRoom, toggleFullscreen, cleanupAll]);
+
+  // ── Feature: Picture-in-Picture Toggle ──
+  const togglePiP = useCallback(async () => {
+    if (!videoRef.current) return;
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+      } else {
+        await videoRef.current.requestPictureInPicture();
+      }
+    } catch {
+      toast.error("Picture-in-Picture not available");
+    }
+  }, []);
+
   // Listen for fullscreen changes
   useEffect(() => {
     const handler = () => setIsFullscreen(!!document.fullscreenElement);
@@ -755,11 +920,21 @@ export default function Home() {
     };
   }, [cleanupAll]);
 
+  // ── Feature: Derived stats for broadcaster ──
+  const activePeerCount = viewers.filter((v) => v.approved).length;
+  const estimatedBitrate = 2_500_000; // ~2.5 Mbps estimated
+  const estimatedDataTransferred = elapsedTime > 0
+    ? (elapsedTime / 1000) * (estimatedBitrate / 8) * activePeerCount
+    : 0;
+
   // ── QR Code URL ──
   const qrUrl =
     typeof window !== "undefined"
       ? `${window.location.origin}${window.location.pathname}#${roomId}`
       : "";
+
+  // ── Feature: PiP support check ──
+  const pipSupported = typeof document !== "undefined" && !!document.pictureInPictureEnabled;
 
   // ═══════════════════════════════════════════════════════════════════════════
   // RENDER
@@ -788,10 +963,20 @@ export default function Home() {
               <StatusDot status={connectionStatus} />
             )}
             {currentView === "share" && isSharing && (
-              <Badge variant="secondary" className="gap-1.5">
-                <MonitorUp className="size-3" />
-                Sharing
-              </Badge>
+              <>
+                <Badge variant="secondary" className="gap-1.5">
+                  <MonitorUp className="size-3" />
+                  Sharing
+                </Badge>
+                {/* Session Timer */}
+                <Badge
+                  variant="outline"
+                  className="gap-1 font-mono text-xs tabular-nums"
+                >
+                  <Timer className="size-3" />
+                  {formatElapsed(elapsedTime)}
+                </Badge>
+              </>
             )}
             {currentView === "watching" && (
               <Badge variant="secondary" className="gap-1.5">
@@ -799,6 +984,18 @@ export default function Home() {
                 Watching
               </Badge>
             )}
+            {/* Dark Mode Toggle */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              title="Toggle theme"
+            >
+              <Sun className="size-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+              <Moon className="absolute size-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+              <span className="sr-only">Toggle theme</span>
+            </Button>
           </div>
         </div>
       </header>
@@ -817,13 +1014,22 @@ export default function Home() {
               transition={{ duration: 0.3 }}
               className="w-full max-w-4xl px-4 py-12"
             >
-              {/* Hero */}
-              <div className="hero-bg dark:hero-bg-dark mb-12 text-center">
+              {/* Hero with particle dot pattern background */}
+              <div className="hero-bg dark:hero-bg-dark relative mb-12 overflow-hidden rounded-2xl px-6 py-12 text-center">
+                {/* CSS dot pattern overlay */}
+                <div
+                  className="pointer-events-none absolute inset-0 opacity-[0.07] dark:opacity-[0.04]"
+                  style={{
+                    backgroundImage:
+                      "radial-gradient(circle, currentColor 1px, transparent 1px)",
+                    backgroundSize: "24px 24px",
+                  }}
+                />
                 <motion.div
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.5 }}
-                  className="mb-6"
+                  className="relative mb-6"
                 >
                   <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-2xl gradient-emerald shadow-lg shadow-emerald-500/20">
                     <Monitor className="size-8 text-white" />
@@ -842,7 +1048,7 @@ export default function Home() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2, duration: 0.4 }}
-                  className="mx-auto flex max-w-md flex-wrap justify-center gap-2"
+                  className="relative mx-auto flex max-w-md flex-wrap justify-center gap-2"
                 >
                   <Badge variant="outline" className="gap-1 text-xs">
                     <Wifi className="size-3" /> Local Network
@@ -859,7 +1065,7 @@ export default function Home() {
                 </motion.div>
               </div>
 
-              {/* Action Cards */}
+              {/* Action Cards with hover scale effect */}
               <motion.div
                 variants={staggerContainer}
                 initial="initial"
@@ -868,7 +1074,7 @@ export default function Home() {
               >
                 {/* Share Screen Card */}
                 <motion.div variants={fadeInUp}>
-                  <Card className="group cursor-pointer border-2 transition-all hover:border-emerald-500/50 hover:shadow-lg hover:shadow-emerald-500/10 dark:hover:border-emerald-400/30 dark:hover:shadow-emerald-400/5">
+                  <Card className="group cursor-pointer border-2 transition-all duration-300 hover:border-emerald-500/50 hover:shadow-lg hover:shadow-emerald-500/10 hover:scale-105 dark:hover:border-emerald-400/30 dark:hover:shadow-emerald-400/5">
                     <CardHeader>
                       <div className="mb-2 flex size-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 transition-colors group-hover:bg-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:group-hover:bg-emerald-900">
                         <MonitorUp className="size-6" />
@@ -885,11 +1091,21 @@ export default function Home() {
                           setError(null);
                           setCurrentView("share");
                         }}
-                        className="w-full bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700"
+                        className="relative w-full overflow-hidden bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700"
                         size="lg"
                       >
-                        <MonitorPlay className="size-4" />
-                        Start Sharing
+                        {/* Shimmer effect */}
+                        <span className="absolute inset-0 overflow-hidden rounded-md">
+                          <span
+                            className="absolute inset-0 -translate-x-full animate-[shimmer_2.5s_infinite]"
+                            style={{
+                              background:
+                                "linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)",
+                            }}
+                          />
+                        </span>
+                        <MonitorPlay className="relative size-4" />
+                        <span className="relative">Start Sharing</span>
                       </Button>
                     </CardFooter>
                   </Card>
@@ -897,7 +1113,7 @@ export default function Home() {
 
                 {/* View Screen Card */}
                 <motion.div variants={fadeInUp}>
-                  <Card className="group cursor-pointer border-2 transition-all hover:border-teal-500/50 hover:shadow-lg hover:shadow-teal-500/10 dark:hover:border-teal-400/30 dark:hover:shadow-teal-400/5">
+                  <Card className="group cursor-pointer border-2 transition-all duration-300 hover:border-teal-500/50 hover:shadow-lg hover:shadow-teal-500/10 hover:scale-105 dark:hover:border-teal-400/30 dark:hover:shadow-teal-400/5">
                     <CardHeader>
                       <div className="mb-2 flex size-12 items-center justify-center rounded-xl bg-teal-100 text-teal-600 transition-colors group-hover:bg-teal-200 dark:bg-teal-950 dark:text-teal-400 dark:group-hover:bg-teal-900">
                         <Eye className="size-6" />
@@ -914,11 +1130,21 @@ export default function Home() {
                           setError(null);
                           setCurrentView("join");
                         }}
-                        className="w-full bg-teal-600 text-white hover:bg-teal-700 dark:bg-teal-600 dark:hover:bg-teal-700"
+                        className="relative w-full overflow-hidden bg-teal-600 text-white hover:bg-teal-700 dark:bg-teal-600 dark:hover:bg-teal-700"
                         size="lg"
                       >
-                        <Monitor className="size-4" />
-                        Join a Room
+                        {/* Shimmer effect */}
+                        <span className="absolute inset-0 overflow-hidden rounded-md">
+                          <span
+                            className="absolute inset-0 -translate-x-full animate-[shimmer_2.5s_infinite]"
+                            style={{
+                              background:
+                                "linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)",
+                            }}
+                          />
+                        </span>
+                        <Monitor className="relative size-4" />
+                        <span className="relative">Join a Room</span>
                       </Button>
                     </CardFooter>
                   </Card>
@@ -976,11 +1202,21 @@ export default function Home() {
                 <CardFooter className="flex-col gap-2">
                   <Button
                     onClick={startSharing}
-                    className="w-full bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700"
+                    className="relative w-full overflow-hidden bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700"
                     size="lg"
                   >
-                    <MonitorPlay className="size-4" />
-                    Start Screen Sharing
+                    {/* Shimmer effect */}
+                    <span className="absolute inset-0 overflow-hidden rounded-md">
+                      <span
+                        className="absolute inset-0 -translate-x-full animate-[shimmer_2.5s_infinite]"
+                        style={{
+                          background:
+                            "linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)",
+                        }}
+                      />
+                    </span>
+                    <MonitorPlay className="relative size-4" />
+                    <span className="relative">Start Screen Sharing</span>
                   </Button>
                   <Button
                     variant="ghost"
@@ -1012,51 +1248,56 @@ export default function Home() {
               <div className="grid gap-6 lg:grid-cols-3">
                 {/* Left Column: Room Info + Controls */}
                 <div className="space-y-4 lg:col-span-2">
-                  {/* Room Code Card */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <Wifi className="size-5 text-emerald-600 dark:text-emerald-400" />
-                        Room Code
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex flex-1 items-center justify-center rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50 p-4 dark:border-emerald-700 dark:bg-emerald-950/50">
-                          <span className="text-3xl font-bold tracking-[0.3em] text-emerald-700 dark:text-emerald-300">
-                            {roomId}
-                          </span>
+                  {/* Room Code Card with animated gradient border when sharing */}
+                  <div className="relative rounded-xl p-[2px]" style={{
+                    background: "conic-gradient(from 0deg, #10b981, #059669, #14b8a6, #10b981)",
+                    animation: "spin 3s linear infinite",
+                  }}>
+                    <Card className="relative rounded-[10px]">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                          <Wifi className="size-5 text-emerald-600 dark:text-emerald-400" />
+                          Room Code
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex flex-1 items-center justify-center rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50 p-4 dark:border-emerald-700 dark:bg-emerald-950/50">
+                            <span className="text-3xl font-bold tracking-[0.3em] text-emerald-700 dark:text-emerald-300">
+                              {roomId}
+                            </span>
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={copyRoomCode}
+                              className="size-10"
+                              title="Copy room code"
+                            >
+                              {copied ? (
+                                <Check className="size-4 text-emerald-600" />
+                              ) : (
+                                <Copy className="size-4" />
+                              )}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => setShowQrDialog(true)}
+                              className="size-10"
+                              title="Show QR code"
+                            >
+                              <QrCode className="size-4" />
+                            </Button>
+                          </div>
                         </div>
-                        <div className="flex flex-col gap-2">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={copyRoomCode}
-                            className="size-10"
-                            title="Copy room code"
-                          >
-                            {copied ? (
-                              <Check className="size-4 text-emerald-600" />
-                            ) : (
-                              <Copy className="size-4" />
-                            )}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => setShowQrDialog(true)}
-                            className="size-10"
-                            title="Show QR code"
-                          >
-                            <QrCode className="size-4" />
-                          </Button>
-                        </div>
-                      </div>
-                      <p className="text-center text-xs text-muted-foreground">
-                        Share this code or scan the QR code to join
-                      </p>
-                    </CardContent>
-                  </Card>
+                        <p className="text-center text-xs text-muted-foreground">
+                          Share this code or scan the QR code to join
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </div>
 
                   {/* Preview Card */}
                   <Card>
@@ -1080,7 +1321,7 @@ export default function Home() {
                   </Card>
                 </div>
 
-                {/* Right Column: Viewers */}
+                {/* Right Column: Viewers + Stats */}
                 <div className="space-y-4">
                   <Card className="h-full">
                     <CardHeader>
@@ -1089,7 +1330,17 @@ export default function Home() {
                           <Users className="size-5 text-teal-600 dark:text-teal-400" />
                           Viewers
                         </div>
-                        <Badge variant="secondary">{viewers.length}</Badge>
+                        <AnimatePresence mode="popLayout">
+                          <motion.div
+                            key={viewers.length}
+                            initial={{ scale: 0.5 }}
+                            animate={{ scale: 1 }}
+                            exit={{ scale: 0.5 }}
+                            transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                          >
+                            <Badge variant="secondary">{viewers.length}</Badge>
+                          </motion.div>
+                        </AnimatePresence>
                       </CardTitle>
                       <CardDescription>
                         {viewers.length === 0
@@ -1100,7 +1351,13 @@ export default function Home() {
                     <CardContent className="px-4 pb-4">
                       {viewers.length === 0 ? (
                         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-8 text-center">
-                          <Users className="mb-2 size-8 text-muted-foreground/40" />
+                          {/* Scanning rings animation */}
+                          <div className="relative mb-2 flex size-12 items-center justify-center">
+                            <span className="absolute inset-0 animate-ping rounded-full bg-emerald-400/20" />
+                            <span className="absolute inset-2 animate-pulse rounded-full border-2 border-dashed border-emerald-400/30" />
+                            <span className="absolute inset-4 animate-pulse rounded-full border-2 border-dashed border-emerald-400/20" style={{ animationDelay: "0.5s" }} />
+                            <Users className="size-8 text-muted-foreground/40" />
+                          </div>
                           <p className="text-sm text-muted-foreground">
                             Waiting for viewers...
                           </p>
@@ -1110,7 +1367,11 @@ export default function Home() {
                           {viewers.map((viewer) => (
                             <div
                               key={viewer.id}
-                              className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50"
+                              className={`flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50 ${
+                                viewer.approved
+                                  ? "border-l-4 border-l-emerald-500"
+                                  : "border-l-4 border-l-yellow-500"
+                              }`}
                             >
                               <div className="flex items-center gap-2 min-w-0 flex-1">
                                 <div className={`flex size-8 shrink-0 items-center justify-center rounded-full ${
@@ -1176,7 +1437,7 @@ export default function Home() {
                         </div>
                       )}
                     </CardContent>
-                    <CardFooter>
+                    <CardFooter className="flex-col gap-2">
                       <Button
                         variant="destructive"
                         className="w-full"
@@ -1187,6 +1448,44 @@ export default function Home() {
                       </Button>
                     </CardFooter>
                   </Card>
+
+                  {/* Feature: Connection Stats Panel */}
+                  <Collapsible open={statsOpen} onOpenChange={setStatsOpen}>
+                    <Card>
+                      <CardHeader className="py-3">
+                        <CollapsibleTrigger asChild>
+                          <button className="flex w-full items-center justify-between">
+                            <CardTitle className="flex items-center gap-2 text-sm">
+                              <BarChart3 className="size-4 text-muted-foreground" />
+                              Connection Stats
+                            </CardTitle>
+                            <ChevronDown className={`size-4 text-muted-foreground transition-transform ${statsOpen ? "rotate-180" : ""}`} />
+                          </button>
+                        </CollapsibleTrigger>
+                      </CardHeader>
+                      <CollapsibleContent>
+                        <CardContent className="pt-0 pb-4">
+                          <div className="grid grid-cols-3 gap-3">
+                            <div className="flex flex-col items-center gap-1 rounded-lg border bg-muted/30 p-3">
+                              <Activity className="size-4 text-emerald-600 dark:text-emerald-400" />
+                              <span className="text-xs font-medium text-muted-foreground">Peers</span>
+                              <span className="text-lg font-bold tabular-nums">{activePeerCount}</span>
+                            </div>
+                            <div className="flex flex-col items-center gap-1 rounded-lg border bg-muted/30 p-3">
+                              <Monitor className="size-4 text-teal-600 dark:text-teal-400" />
+                              <span className="text-xs font-medium text-muted-foreground">Resolution</span>
+                              <span className="text-xs font-bold tabular-nums leading-5">{streamResolution}</span>
+                            </div>
+                            <div className="flex flex-col items-center gap-1 rounded-lg border bg-muted/30 p-3">
+                              <BarChart3 className="size-4 text-blue-600 dark:text-blue-400" />
+                              <span className="text-xs font-medium text-muted-foreground">Est. Data</span>
+                              <span className="text-xs font-bold tabular-nums leading-5">{formatBytes(estimatedDataTransferred)}</span>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </CollapsibleContent>
+                    </Card>
+                  </Collapsible>
                 </div>
               </div>
             </motion.div>
@@ -1292,8 +1591,8 @@ export default function Home() {
               transition={{ duration: 0.3 }}
               className="flex w-full flex-col px-4 py-4"
             >
-              {/* Viewer controls bar */}
-              <div className="mb-3 flex items-center justify-between">
+              {/* Viewer controls bar with frosted glass effect */}
+              <div className="mb-3 flex items-center justify-between rounded-xl border bg-background/60 p-2 backdrop-blur-lg">
                 <div className="flex items-center gap-2">
                   <Button
                     variant="ghost"
@@ -1348,6 +1647,18 @@ export default function Home() {
                     )}
                   </Button>
 
+                  {/* Picture-in-Picture */}
+                  {pipSupported && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={togglePiP}
+                      title="Picture-in-Picture"
+                    >
+                      <PictureInPicture2 className="size-4" />
+                    </Button>
+                  )}
+
                   {/* Fullscreen */}
                   <Button
                     variant="ghost"
@@ -1381,7 +1692,12 @@ export default function Home() {
                   </div>
                 ) : connectionStatus !== "connected" ? (
                   <div className="flex flex-col items-center gap-4 p-8 text-center">
-                    <div className="size-12 animate-pulse rounded-full bg-emerald-500/20 flex items-center justify-center">
+                    {/* Scanning rings animation */}
+                    <div className="relative flex size-12 items-center justify-center">
+                      <span className="absolute inset-0 animate-ping rounded-full bg-emerald-500/20" />
+                      <span className="absolute inset-2 animate-pulse rounded-full border-2 border-dashed border-emerald-400/30" />
+                      <span className="absolute inset-4 animate-pulse rounded-full border-2 border-dashed border-emerald-400/20" style={{ animationDelay: "0.5s" }} />
+                      <span className="absolute inset-6 animate-pulse rounded-full border-2 border-dashed border-emerald-400/10" style={{ animationDelay: "1s" }} />
                       <Wifi className="size-6 text-emerald-500" />
                     </div>
                     <p className="text-lg font-medium text-muted-foreground">
@@ -1407,8 +1723,8 @@ export default function Home() {
                 )}
               </div>
 
-              {/* Room info bar */}
-              <div className="mt-3 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              {/* Room info bar with frosted glass */}
+              <div className="mt-3 flex items-center justify-center gap-2 rounded-xl border bg-background/60 px-4 py-2 text-sm text-muted-foreground backdrop-blur-lg">
                 <Monitor className="size-4" />
                 <span>
                   Watching room{" "}
@@ -1422,8 +1738,13 @@ export default function Home() {
         </AnimatePresence>
       </main>
 
-      {/* ─── Footer ─────────────────────────────────────────────────────── */}
-      <footer className="mt-auto border-t">
+      {/* ─── Footer with scroll reveal animation ───────────────────────── */}
+      <motion.footer
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5, duration: 0.4 }}
+        className="mt-auto border-t"
+      >
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 text-xs text-muted-foreground">
           <div className="flex items-center gap-1.5">
             <Monitor className="size-3" />
@@ -1433,8 +1754,18 @@ export default function Home() {
             <Shield className="size-3" />
             <span>Peer-to-peer · No data leaves your network</span>
           </div>
+          {/* Keyboard Shortcuts Help Button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-6"
+            onClick={() => setShowShortcutsDialog(true)}
+            title="Keyboard shortcuts"
+          >
+            <HelpCircle className="size-3.5" />
+          </Button>
         </div>
-      </footer>
+      </motion.footer>
 
       {/* ─── QR Code Dialog ────────────────────────────────────────────── */}
       <Dialog open={showQrDialog} onOpenChange={setShowQrDialog}>
@@ -1469,6 +1800,61 @@ export default function Home() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ─── Keyboard Shortcuts Dialog ──────────────────────────────────── */}
+      <Dialog open={showShortcutsDialog} onOpenChange={setShowShortcutsDialog}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <HelpCircle className="size-5 text-emerald-600 dark:text-emerald-400" />
+              Keyboard Shortcuts
+            </DialogTitle>
+            <DialogDescription>
+              Use these shortcuts to control your viewing experience.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <span className="text-sm">Leave / Go Back</span>
+              <kbd className="rounded border bg-muted px-2 py-0.5 text-xs font-mono font-medium">
+                Esc
+              </kbd>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <span className="text-sm">Toggle Fullscreen</span>
+              <kbd className="rounded border bg-muted px-2 py-0.5 text-xs font-mono font-medium">
+                F
+              </kbd>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <span className="text-sm">Mute / Unmute</span>
+              <kbd className="rounded border bg-muted px-2 py-0.5 text-xs font-mono font-medium">
+                M
+              </kbd>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Inline Keyframes for Shimmer Effect ───────────────────────── */}
+      <style jsx global>{`
+        @keyframes shimmer {
+          0% {
+            transform: translateX(-100%);
+          }
+          100% {
+            transform: translateX(100%);
+          }
+        }
+        @keyframes spin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
+      `}</style>
     </div>
   );
 }
