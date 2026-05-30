@@ -241,7 +241,10 @@ export default function Home() {
 
   const isSession = isSharing || currentView === "watching";
 
-  // ── Signaling server runs as standalone mini-service on port 3003 ──
+  // ── Start signaling server on first page load (Node.js runtime, not Edge) ──
+  useEffect(() => {
+    fetch("/api/start-signal").catch(() => {});
+  }, []);
 
   // ── Feature 2: Auto-join from URL param ?join=CODE ──
   useEffect(() => {

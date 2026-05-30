@@ -6,6 +6,7 @@
   "private": true,
   "scripts": {
     "dev": "bunx next dev -p 3000",
+    "dev:prod": "NODE_ENV=production bun .next/standalone/server.js",
     "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
     "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
     "lint": "eslint .",
