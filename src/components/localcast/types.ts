@@ -76,6 +76,17 @@ export const QUALITY_PRESETS: Record<QualityPreset, QualityConfig> = {
 
 export const REACTION_EMOJIS = ["👍", "👎", "❤️", "😂", "🎉", "👏", "🔥"];
 
+// ─── Event Log ───────────────────────────────────────────────────────────
+
+export interface EventLogEntry {
+  id: string;
+  type: "viewer_joined" | "viewer_left" | "viewer_approved" | "viewer_denied" | "viewer_kicked" | "chat" | "reaction";
+  viewerId: string;
+  viewerName: string;
+  timestamp: number;
+  detail?: string;
+}
+
 // ─── Animation Variants ──────────────────────────────────────────────────────
 
 export const pageVariants = {
@@ -135,4 +146,10 @@ export function formatBitrate(bps: number): string {
 let msgCounter = 0;
 export function generateId(): string {
   return `msg_${Date.now()}_${++msgCounter}`;
+}
+
+export function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  return `${Math.floor(seconds / 3600)}h ago`;
 }
