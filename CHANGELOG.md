@@ -20,6 +20,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.4] - 2025-06-30
+
+### Fixed
+- **"Could not reach signaling server"**: Root cause was Socket.IO path mismatch — server used `path: '/'` but client defaulted to `/socket.io`. Changed server to use default `/socket.io` path matching the client.
+- **Port conflict (again)**: The previously "deleted" inline signaling server files (`src/instrumentation.ts`, `src/lib/signaling-server.ts`, `src/app/api/signal/route.ts`) still existed and were starting a SECOND signaling server with `path: '/'`, causing EADDRINUSE conflicts. Permanently resolved.
+- **Stale `/api/signal` fetch in page.tsx**: Removed `useEffect` that called the now-deleted `/api/signal` API route on every page load.
+
+### Changed
+- **Architecture**: Reverted to embedded signaling server via Next.js `instrumentation.ts` (the standalone mini-service couldn't persist in the sandbox environment). The signaling server now starts automatically as part of the Next.js process lifecycle, sharing the same PID.
+- **Signaling server uses correct Socket.IO path**: Both server and client now use the default `/socket.io` path, ensuring proper WebSocket handshake through the Caddy proxy with `XTransformPort=3003`.
+- **Simplified dev script**: `bun run dev` now starts only Next.js (signaling server is embedded via instrumentation).
+
+---
+
 ## [1.0.2] - 2025-06-18
 
 ### Fixed

@@ -124,7 +124,7 @@ const PORT = Number(process.env.PORT) || 3003
 const httpServer = createServer()
 
 const io = new Server(httpServer, {
-  path: '/',
+  // Use default path '/socket.io' to match client defaults
   cors: {
     origin: '*',
     methods: ['GET', 'POST'],
@@ -1059,7 +1059,7 @@ httpServer.listen(PORT, '0.0.0.0', () => {
   console.log('='.repeat(56))
   console.log('  LocalCast Signaling Server')
   console.log(`  Port      : ${PORT}`)
-  console.log(`  Socket.IO : path="/"`)
+  console.log(`  Socket.IO : path="/socket.io" (default)`)
   console.log(`  CORS      : all origins`)
   console.log(`  Ping      : timeout=60s  interval=25s`)
   console.log('='.repeat(56))
