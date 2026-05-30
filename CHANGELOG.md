@@ -7,19 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.0.1] - 2025-06-02
+## [1.0.2] - 2025-06-18
 
 ### Fixed
-- **Connection speed test thresholds**: Adjusted latency categories to account for proxy overhead. Excellent < 50ms, Good < 100ms, Fair < 200ms (was 30/60/120ms). A 306ms ping now correctly shows "Poor" instead of an overly harsh classification.
-- **Duplicate icons on Stream Quality**: Removed duplicate icon container in the quality preset selector on the share setup screen.
+- **Connection speed test thresholds**: Adjusted latency categories to account for Caddy proxy overhead. Excellent < 80ms, Good < 200ms, Fair < 400ms (was 50/100/200ms). A 306ms ping now correctly shows "Fair" instead of "Poor".
+- **Dependency version conflict**: Fixed `@radix-ui/react-radio-group` version from non-existent `^3.3.7` to `^1.3.8`.
+- **Duplicate icons on Stream Quality**: Replaced duplicate Sparkles icon with Check icon in the quality preset selector's selected indicator.
+- **Lint error**: Fixed `@typescript-eslint/no-require-imports` in signaling server keep-alive wrapper.
 
 ### Changed
 - **Mobile responsive design**: Comprehensive mobile adaptation across all views:
-  - Header: tighter spacing on mobile, display name editor hidden on small screens, timer badge compacted
-  - WatchView: control bars use flex-wrap on mobile, health bar percentage hidden on small screens, video container uses adaptive min-height (40vh–55vh)
-  - ShareSetupView: reduced padding and gap spacing on mobile, share mode/quality grids compacted
-  - ShareActiveView: room code card stacks vertically on mobile, preview buttons wrap
-  - HomeView: smaller hero logo/text on mobile, tighter padding
+  - Share Setup: Advanced settings (Max Viewers, Session Theme, Connection Test, Password, Approval) collapsed into an expandable "Advanced Options" section on mobile
+  - Header: tighter spacing, min touch targets on all icon buttons
+  - WatchView: latency badge, health bar, and separator hidden on mobile to reduce clutter; bottom bar uses compact text
+  - ShareActiveView: room code characters smaller on mobile, tighter spacing
+  - HomeView: reduced padding and icon sizes on mobile
+  - JoinView: tighter container padding
+  - ChatPanel: full-width overlay on mobile
+
+---
+
+## [1.0.1] - 2025-06-02
+
+### Fixed
+- Connection speed test thresholds adjusted for proxy environments
 
 ---
 

@@ -622,9 +622,10 @@ export function useLocalCast(): UseLocalCastReturn {
       if (pings.length > 0) {
         const avgLatency = Math.round(pings.reduce((a, b) => a + b, 0) / pings.length);
         let quality: SpeedTestQuality;
-        if (avgLatency < 50) quality = "excellent";
-        else if (avgLatency < 100) quality = "good";
-        else if (avgLatency < 200) quality = "fair";
+        // Thresholds account for proxy overhead (Caddy/gateway adds ~150-300ms in sandbox)
+        if (avgLatency < 80) quality = "excellent";
+        else if (avgLatency < 200) quality = "good";
+        else if (avgLatency < 400) quality = "fair";
         else quality = "poor";
 
         setSpeedTestResult({ latencyMs: avgLatency, quality, timestamp: Date.now() });

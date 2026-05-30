@@ -71,7 +71,7 @@ export function ChatPanel({
         animate={{ x: 0 }}
         exit={{ x: "100%" }}
         transition={{ type: "spring", damping: 30, stiffness: 300 }}
-        className="fixed right-0 top-14 bottom-0 z-50 flex w-full max-w-sm flex-col border-l bg-background/95 backdrop-blur-xl shadow-2xl shadow-black/10 dark:bg-background/95 chat-border-glow"
+        className="fixed right-0 top-14 bottom-0 z-50 flex w-full sm:max-w-sm flex-col border-l bg-background/95 backdrop-blur-xl shadow-2xl shadow-black/10 dark:bg-background/95 chat-border-glow"
         style={{ boxShadow: "-4px 0 24px rgba(0,0,0,0.08)" }}
       >
         {/* Header with gradient */}
@@ -193,7 +193,7 @@ export function ChatPanel({
         <div className="gradient-message-separator" />
 
         {/* Input */}
-        <div className="border-t bg-muted/10 p-3">
+        <div className="border-t bg-muted/10 p-2.5 sm:p-3">
           <div className="focus-ring-animated flex items-center gap-2 rounded-xl border border-transparent">
             <div className="relative flex-1">
               <Input
@@ -217,7 +217,7 @@ export function ChatPanel({
               </Button>
             </motion.div>
           </div>
-          <p className="mt-2 text-center text-[10px] text-muted-foreground/30">
+          <p className="mt-1.5 sm:mt-2 text-center text-[10px] text-muted-foreground/30">
             Press Enter to send · Messages are local only
           </p>
         </div>

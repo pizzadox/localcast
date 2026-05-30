@@ -201,7 +201,7 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
             >
               <Sparkles className="size-3 text-emerald-600 dark:text-emerald-400" />
               <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-                Version 1.0.1
+                Version 1.0.2
               </span>
             </motion.div>
 
@@ -248,23 +248,23 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
           <Sparkles className="size-5 text-emerald-600 dark:text-emerald-400" />
           <h2 className="text-lg font-bold">How It Works</h2>
         </div>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-3 sm:gap-4 sm:grid-cols-3">
           {steps.map((step, i) => (
             <motion.div
               key={step.title}
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 + i * 0.1, duration: 0.4 }}
-              className={`group relative flex flex-col items-center gap-3 rounded-2xl border bg-card p-5 transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/5 hover:border-emerald-300 dark:hover:border-emerald-700 hover-glow-emerald ${i < 2 ? "progress-flow" : ""}`}
+              className={`group relative flex flex-col items-center gap-3 rounded-2xl border bg-card p-4 sm:p-5 transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/5 hover:border-emerald-300 dark:hover:border-emerald-700 hover-glow-emerald ${i < 2 ? "progress-flow" : ""}`}
             >
               {/* Step number with pulsing ring */}
-              <div className="absolute -top-3 -left-3">
+              <div className="absolute -top-2.5 -left-2.5 sm:-top-3 sm:-left-3">
                 <span className="absolute inset-0 rounded-full bg-emerald-500/20 animate-ping" />
-                <div className="relative flex size-6 items-center justify-center rounded-full bg-emerald-600 text-[11px] font-bold text-white shadow-md shadow-emerald-500/30">
+                <div className="relative flex size-5 sm:size-6 items-center justify-center rounded-full bg-emerald-600 text-[10px] sm:text-[11px] font-bold text-white shadow-md shadow-emerald-500/30">
                   {i + 1}
                 </div>
               </div>
-              <div className={`flex size-12 items-center justify-center rounded-2xl ${step.color} shadow-sm transition-all duration-300 group-hover:scale-110 group-hover:shadow-md`}>
+              <div className={`flex size-10 sm:size-12 items-center justify-center rounded-xl sm:rounded-2xl ${step.color} shadow-sm transition-all duration-300 group-hover:scale-110 group-hover:shadow-md`}>
                 <step.icon className="size-6 icon-spin-hover" />
               </div>
               <h3 className="text-sm font-bold">{step.title}</h3>
@@ -376,17 +376,17 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.5, duration: 0.5 }}
       >
-        <h2 className="mb-4 text-center text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">
+        <h2 className="mb-3 sm:mb-4 text-center text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">
           Why LocalCast?
         </h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-3 sm:grid-cols-3">
           {features.map((feat, i) => (
             <motion.div
               key={feat.label}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.6 + i * 0.05, duration: 0.3 }}
-              className="group flex items-start gap-2.5 rounded-xl border bg-muted/20 p-3.5 transition-all duration-200 hover:bg-muted/40 hover:shadow-sm hover:border-emerald-200/50 dark:hover:border-emerald-800/30"
+              className="group flex items-start gap-2 sm:gap-2.5 rounded-lg sm:rounded-xl border bg-muted/20 p-2.5 sm:p-3.5 transition-all duration-200 hover:bg-muted/40 hover:shadow-sm hover:border-emerald-200/50 dark:hover:border-emerald-800/30"
             >
               <feat.icon className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400 icon-spin-hover" />
               <div>

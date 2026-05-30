@@ -121,16 +121,16 @@ export function WatchView({
       animate="animate"
       exit="exit"
       transition={{ duration: 0.3 }}
-      className="flex w-full flex-col px-3 py-3 sm:px-4 sm:py-4"
+      className="flex w-full flex-col px-2 py-2 sm:px-4 sm:py-4"
     >
       {/* Top Controls Bar — fades on mouse idle */}
       <div
-        className="frosted-glass control-bar-fade mb-3 flex flex-wrap items-center justify-between gap-1.5 rounded-xl p-1.5 sm:flex-nowrap sm:gap-2 sm:p-2 control-bar"
+        className="frosted-glass control-bar-fade mb-2 sm:mb-3 flex flex-wrap items-center justify-between gap-1 rounded-xl p-1.5 sm:flex-nowrap sm:gap-2 sm:p-2 control-bar"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         style={{ opacity: controlsVisible ? 1 : 0 }}
       >
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-1 sm:gap-1.5">
           <Button
             variant="ghost"
             size="sm"
@@ -160,7 +160,7 @@ export function WatchView({
             {connectionStatus === "connected" ? "Connected" : connectionStatus === "connecting" ? "Connecting..." : "Disconnected"}
           </Badge>
         </div>
-        <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
+        <div className="flex flex-wrap items-center gap-0.5 sm:gap-1.5">
           {/* Connection quality */}
           <Badge
             variant="outline"
@@ -180,16 +180,16 @@ export function WatchView({
             <span className="hidden sm:inline">{connectionQuality.charAt(0).toUpperCase() + connectionQuality.slice(1)}</span>
           </Badge>
 
-          {/* Latency — color-coded */}
+          {/* Latency — color-coded, hidden on small mobile */}
           {latency > 0 && (
-            <Badge variant="outline" className={`gap-1 font-mono text-[10px] ${latencyClass}`}>
+            <Badge variant="outline" className={`hidden sm:flex gap-1 font-mono text-[10px] ${latencyClass}`}>
               <Gauge className="size-3" />
               {latency}ms
             </Badge>
           )}
 
           {/* Connection Health Bar */}
-          <div className="flex items-center gap-1.5 sm:gap-2" title={`Connection Health: ${healthPercent}% — ${healthLabel}`}>
+          <div className="hidden sm:flex items-center gap-1.5 sm:gap-2" title={`Connection Health: ${healthPercent}% — ${healthLabel}`}>
             <div className="h-1.5 w-12 sm:w-16 rounded-full bg-muted/50 overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all duration-1000 ease-out ${healthColor}`}
@@ -205,19 +205,19 @@ export function WatchView({
             </span>
           </div>
 
-          <div className="mx-1 h-4 w-px bg-border/50" />
+          <div className="hidden sm:block mx-1 h-4 w-px bg-border/50" />
 
-          {/* Recording indicator */}
+          {/* Recording indicator — compact on mobile */}
           {isRecording && (
             <Badge
               variant="outline"
-              className="gap-1.5 border-red-300 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/50 dark:text-red-400"
+              className="gap-1 sm:gap-1.5 border-red-300 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/50 dark:text-red-400"
             >
               <span className="relative flex size-2.5">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
                 <span className="relative inline-flex size-2.5 rounded-full bg-red-500" />
               </span>
-              <span className="font-mono text-[10px] tabular-nums">REC {formatElapsed(recordingDuration)}</span>
+              <span className="font-mono text-[10px] tabular-nums">{formatElapsed(recordingDuration)}</span>
             </Badge>
           )}
 
@@ -396,11 +396,11 @@ export function WatchView({
       </div>
 
       {/* Bottom Bar: Room Info + Reactions */}
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+      <div className="mt-2 sm:mt-3 flex flex-wrap items-center justify-between gap-2">
         {/* Room info */}
-        <div className="control-bar flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-muted-foreground">
-          <div className="flex items-center gap-1.5">
-            <Monitor className="size-3.5" />
+        <div className="control-bar flex items-center gap-2 sm:gap-3 rounded-xl px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm text-muted-foreground">
+          <div className="flex items-center gap-1 sm:gap-1.5">
+            <Monitor className="size-3 sm:size-3.5" />
             <span>
               Room{" "}
               <span className="font-mono font-bold text-foreground">
@@ -408,10 +408,10 @@ export function WatchView({
               </span>
             </span>
           </div>
-          <div className="h-3.5 w-px bg-border/50" />
+          <div className="h-3 w-px bg-border/50" />
           <div className="flex items-center gap-1">
-            <Wifi className="size-3" />
-            <span className={`${qualityClass} text-xs font-medium`}>
+            <Wifi className="size-2.5 sm:size-3" />
+            <span className={`${qualityClass} text-[10px] sm:text-xs font-medium`}>
               {connectionQuality.charAt(0).toUpperCase() + connectionQuality.slice(1)}
             </span>
           </div>

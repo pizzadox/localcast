@@ -15,7 +15,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   AlertCircle,
+  Check,
   MonitorPlay,
   MonitorUp,
   ArrowLeft,
@@ -38,6 +44,8 @@ import {
   CheckCircle2,
   XCircle,
   CircleDot,
+  ChevronDown,
+  Settings2,
 } from "lucide-react";
 
 import { pageVariants, QUALITY_PRESETS, SHARE_MODE_CONFIG, MAX_VIEWER_OPTIONS, SESSION_THEMES } from "./types";
@@ -109,6 +117,7 @@ export function ShareSetupView({
 }: ShareSetupViewProps) {
   const [showPasswordField, setShowPasswordField] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   return (
     <motion.div
       key="share-setup"
@@ -273,7 +282,7 @@ export function ShareSetupView({
                           className="absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full bg-emerald-500 shadow-sm"
                           transition={{ type: "spring", stiffness: 500, damping: 30 }}
                         >
-                          <Sparkles className="size-2.5 text-white" />
+                          <Check className="size-2.5 text-white" />
                         </motion.div>
                       )}
                     </motion.button>
@@ -283,8 +292,23 @@ export function ShareSetupView({
             </div>
           </div>
 
-          {/* Section divider with fade-out edges */}
+          {/* ── Advanced Options (collapsible on mobile) ──────────────────── */}
           <div className="section-divider" />
+          <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+            <CollapsibleTrigger asChild>
+              <button className="flex w-full items-center justify-between rounded-xl border bg-muted/20 px-3 py-2.5 sm:px-4 sm:py-3 text-left transition-all duration-200 hover:bg-muted/30 active:scale-[0.99]">
+                <div className="flex items-center gap-2">
+                  <Settings2 className="size-4 text-muted-foreground" />
+                  <span className="text-sm font-semibold">Advanced Options</span>
+                  {(showPasswordField || requireApproval || maxViewers !== 0 || roomTheme !== "default") && (
+                    <span className="flex size-2 rounded-full bg-emerald-500" />
+                  )}
+                </div>
+                <ChevronDown className={`size-4 text-muted-foreground transition-transform duration-300 ${advancedOpen ? "rotate-180" : ""}`} />
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="mt-3 space-y-4">
 
           {/* Max Viewers */}
           <div className="rounded-xl border bg-muted/20 p-3 sm:p-4">
@@ -301,7 +325,7 @@ export function ShareSetupView({
                     key={opt}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => onMaxViewersChange(opt)}
-                    className={`rounded-lg border-2 px-3 py-1.5 text-xs font-semibold transition-all duration-200 ${
+                    className={`rounded-lg border-2 px-3 py-1.5 text-xs font-semibold transition-all duration-200 min-h-[44px] min-w-[44px] ${
                       isSelected
                         ? "border-emerald-500 bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300"
                         : "border-transparent bg-background text-muted-foreground hover:border-border hover:bg-muted/50"
@@ -313,9 +337,6 @@ export function ShareSetupView({
               })}
             </div>
           </div>
-
-          {/* Section divider */}
-          <div className="section-divider" />
 
           {/* Session Theme */}
           <div className="rounded-xl border bg-muted/20 p-3 sm:p-4">
@@ -331,7 +352,7 @@ export function ShareSetupView({
                     key={key}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => onRoomThemeChange(key)}
-                    className={`relative flex flex-col items-center gap-1.5 rounded-xl border-2 px-4 py-3 transition-all duration-200 ${
+                    className={`relative flex flex-col items-center gap-1.5 rounded-xl border-2 px-4 py-3 transition-all duration-200 min-h-[44px] ${
                       isSelected
                         ? "border-current shadow-sm"
                         : "border-transparent bg-background hover:border-border hover:bg-muted/50"
@@ -354,9 +375,6 @@ export function ShareSetupView({
             </div>
           </div>
 
-          {/* Section divider */}
-          <div className="section-divider" />
-
           {/* Connection Speed Test */}
           <div className="rounded-xl border bg-muted/20 p-3 sm:p-4">
             <div className="flex items-center gap-2 mb-3">
@@ -367,7 +385,7 @@ export function ShareSetupView({
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1.5"
+                className="gap-1.5 min-h-[44px]"
                 onClick={onConnectionSpeedTest}
                 disabled={speedTestResult.quality === "testing"}
               >
@@ -401,9 +419,6 @@ export function ShareSetupView({
               )}
             </div>
           </div>
-
-          {/* Section divider */}
-          <div className="section-divider" />
 
           {/* Password Protection toggle */}
           <div className="rounded-xl border bg-muted/20 p-3 sm:p-4 transition-all duration-300 hover:bg-muted/30 toggle-smooth">
@@ -447,7 +462,7 @@ export function ShareSetupView({
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
                     aria-label={showPassword ? "Hide password" : "Show password"}
                   >
                     {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
@@ -456,9 +471,6 @@ export function ShareSetupView({
               </motion.div>
             )}
           </div>
-
-          {/* Section divider */}
-          <div className="section-divider" />
 
           {/* Approval toggle */}
           <div className={`approval-glow flex items-center justify-between rounded-xl border bg-muted/20 p-3 sm:p-4 transition-all duration-300 hover:bg-muted/30 toggle-smooth ripple-effect ${requireApproval ? "active" : ""}`}>
@@ -481,6 +493,10 @@ export function ShareSetupView({
               onCheckedChange={onToggleApproval}
             />
           </div>
+
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
         </CardContent>
         <CardFooter className="relative flex-col gap-2 pt-2">
           {/* Bottom gradient bar (mirrors top) */}

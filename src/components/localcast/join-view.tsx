@@ -129,7 +129,7 @@ export function JoinView({
       animate="animate"
       exit="exit"
       transition={{ duration: 0.3 }}
-      className="w-full max-w-md px-4"
+      className="w-full max-w-md px-3 sm:px-4"
     >
       <Card className="glass-card relative overflow-hidden border-2 shadow-lg">
         {/* Top accent bar */}

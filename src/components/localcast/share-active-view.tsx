@@ -188,11 +188,11 @@ export function ShareActiveView({
       animate="animate"
       exit="exit"
       transition={{ duration: 0.3 }}
-      className="w-full max-w-4xl px-3 py-4 sm:px-4 sm:py-6"
+      className="w-full max-w-4xl px-3 py-3 sm:px-4 sm:py-6"
     >
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
         {/* Left Column: Room Info + Controls */}
-        <div className="space-y-4 lg:col-span-2">
+        <div className="space-y-3 sm:space-y-4 lg:col-span-2">
           {/* Room Code Card */}
           <Card className="glass-card overflow-hidden border-2">
             <div className="h-1 gradient-emerald" />
@@ -209,7 +209,7 @@ export function ShareActiveView({
             <CardContent className="space-y-4">
               {/* Animated connection line decoration */}
               <div className="connection-pulse-line rounded-full mx-auto max-w-[60%]" />
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
                 <div className="flex flex-1 items-center justify-center rounded-xl border-2 border-dashed border-emerald-300/60 bg-emerald-50/50 p-3 sm:p-4 transition-colors dark:border-emerald-700/60 dark:bg-emerald-950/30">
                   <div className="flex gap-2">
                     {codeChars.map((char, i) => (
@@ -218,7 +218,7 @@ export function ShareActiveView({
                         initial={{ opacity: 0, scale: 0.5, y: 8 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         transition={{ delay: i * 0.08, type: "spring", stiffness: 400, damping: 20 }}
-                        className="room-code-char inline-flex size-10 sm:size-12 items-center justify-center rounded-lg bg-emerald-100/80 font-mono text-2xl sm:text-3xl font-bold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 cursor-default sequential-glow skeleton-shine"
+                        className="room-code-char inline-flex size-9 sm:size-12 items-center justify-center rounded-lg bg-emerald-100/80 font-mono text-xl sm:text-3xl font-bold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 cursor-default sequential-glow skeleton-shine"
                         style={{ animationDelay: `${i * 0.12}s` }}
                       >
                         {char}
@@ -226,7 +226,7 @@ export function ShareActiveView({
                     ))}
                   </div>
                 </div>
-                <div className="flex flex-row sm:flex-col gap-2">
+                <div className="flex flex-row sm:flex-col gap-1.5 sm:gap-2">
                   <Button
                     variant="outline"
                     size="icon"
@@ -371,7 +371,7 @@ export function ShareActiveView({
         </div>
 
         {/* Right Column: Viewers + Stats */}
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
           <Card className="glass-card h-full">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">

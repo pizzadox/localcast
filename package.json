@@ -1,6 +1,6 @@
 {
   "name": "localcast",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "LAN Screen Sharing — pure browser WebRTC app with unlimited viewers",
   "license": "MIT",
   "private": true,
@@ -36,7 +36,7 @@
     "@radix-ui/react-navigation-menu": "^1.2.13",
     "@radix-ui/react-popover": "^1.1.14",
     "@radix-ui/react-progress": "^1.1.7",
-    "@radix-ui/react-radio-group": "^3.3.7",
+    "@radix-ui/react-radio-group": "^1.3.8",
     "@radix-ui/react-scroll-area": "^1.2.9",
     "@radix-ui/react-select": "^2.2.5",
     "@radix-ui/react-separator": "^1.1.7",

@@ -292,7 +292,7 @@ export default function Home() {
             <span className="text-gradient text-lg font-bold">LocalCast</span>
           </button>
 
-          <div className="flex items-center gap-1.5 sm:gap-3">
+          <div className="flex items-center gap-1 sm:gap-1.5">
             {/* Name Editor (during active sessions) */}
             {isSession && (
               <div className="hidden sm:flex items-center gap-1.5 rounded-lg border bg-muted/30 px-2 py-1">
@@ -314,7 +314,7 @@ export default function Home() {
               <>
                 <Badge variant="secondary" className="gap-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 sm:gap-1.5">
                   <MonitorUp className="size-3" />
-                  <span className="hidden xs:inline">Live</span>
+                  <span className="hidden sm:inline">Live</span>
                 </Badge>
                 <Badge
                   variant="outline"
@@ -328,10 +328,10 @@ export default function Home() {
             {currentView === "watching" && (
               <Badge variant="secondary" className="gap-1 bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300 sm:gap-1.5">
                 <Eye className="size-3" />
-                Watching
+                <span className="hidden xs:inline">Watching</span>
               </Badge>
             )}
-            {/* Connection Tips Button (during viewing when quality is poor) - hidden on mobile */}
+            {/* Connection Tips Button — hidden on mobile */}
             {currentView === "watching" && connectionQuality === "poor" && (
               <Button
                 variant="ghost"
@@ -354,10 +354,9 @@ export default function Home() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="relative size-8"
+                className="relative size-8 min-w-[32px] min-h-[32px]"
                 onClick={() => {
                   setShowChatPanel(!showChatPanel);
-                  // Clear unread when opening
                 }}
                 title={showChatPanel ? "Hide chat (C)" : "Show chat (C)"}
               >
@@ -374,7 +373,7 @@ export default function Home() {
               <Button
                 variant="ghost"
                 size="icon"
-                className={`size-8 ${!soundEnabled ? "text-muted-foreground" : ""}`}
+                className={`size-8 min-w-[32px] min-h-[32px] ${!soundEnabled ? "text-muted-foreground" : ""}`}
                 onClick={() => setSoundEnabled(!soundEnabled)}
                 title={soundEnabled ? "Mute sounds" : "Enable sounds"}
               >
@@ -388,7 +387,7 @@ export default function Home() {
             <Button
               variant="ghost"
               size="icon"
-              className="size-8"
+              className="size-8 min-w-[32px] min-h-[32px]"
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
               title="Toggle theme"
             >
@@ -592,7 +591,7 @@ export default function Home() {
           <div className="flex items-center gap-1.5">
             <Monitor className="size-3" />
             <span className="font-medium">LocalCast</span>
-            <span className="text-muted-foreground/50">v1.0.1</span>
+            <span className="text-muted-foreground/50">v1.0.2</span>
           </div>
           <div className="hidden items-center gap-1 sm:flex">
             <Shield className="size-3" />

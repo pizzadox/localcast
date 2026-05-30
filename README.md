@@ -6,7 +6,7 @@
 
 **Share your screen with unlimited viewers on your local network. No install, no cloud, no accounts.**
 
-[![Version](https://img.shields.io/badge/version-1.0.0-emerald?style=flat-square)](https://github.com/pizzadox/localcast/releases)
+[![Version](https://img.shields.io/badge/version-1.0.2-emerald?style=flat-square)](https://github.com/pizzadox/localcast/releases)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
 [![WebRTC](https://img.shields.io/badge/WebRTC-P2P-blue?style=flat-square)](https://webrtc.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
