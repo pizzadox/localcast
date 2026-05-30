@@ -266,20 +266,6 @@ export function WatchView({
         </div>
       </div>
 
-      {/* Connection Health Bar */}
-      {connectionStatus === "connected" && (
-        <div className="mb-1 flex items-center gap-2 px-1">
-          <span className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">Connection Health</span>
-          <div className="h-1 flex-1 rounded-full bg-muted overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all duration-1000 ${healthColor}`}
-              style={{ width: `${connectionHealthScore}%` }}
-            />
-          </div>
-          <span className="text-[10px] font-mono tabular-nums text-muted-foreground">{connectionHealthScore}</span>
-        </div>
-      )}
-
       {/* Video Container with Vignette + Gradient Border + Ambient Glow + Parallax */}
       <div
         className={`vignette video-bottom-gradient video-container ambient-glow parallax-container flex flex-1 items-center justify-center overflow-hidden rounded-xl border shadow-xl shadow-black/20 transition-all duration-500 ${connectionStatus === "connected" ? "gradient-border-subtle" : ""} ${connectionQuality === "poor" && connectionStatus === "connected" ? "ring-1 ring-red-500/30" : ""}`}
