@@ -1,6 +1,8 @@
 {
-  "name": "nextjs_tailwind_shadcn_ts",
-  "version": "0.2.0",
+  "name": "localcast",
+  "version": "1.0.0",
+  "description": "LAN Screen Sharing — pure browser WebRTC app with unlimited viewers",
+  "license": "MIT",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000 2>&1 | tee dev.log",
