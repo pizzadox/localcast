@@ -25,10 +25,13 @@ import {
   Maximize2,
   Monitor,
   Smartphone,
+  LayoutGrid,
+  AppWindow,
+  Globe,
 } from "lucide-react";
 
-import { pageVariants, QUALITY_PRESETS } from "./types";
-import type { QualityPreset } from "./types";
+import { pageVariants, QUALITY_PRESETS, SHARE_MODE_CONFIG } from "./types";
+import type { QualityPreset, ShareMode } from "./types";
 
 interface ShareSetupViewProps {
   onStartSharing: () => void;
@@ -36,6 +39,8 @@ interface ShareSetupViewProps {
   onToggleApproval: (v: boolean) => void;
   qualityPreset: QualityPreset;
   onQualityChange: (v: QualityPreset) => void;
+  shareMode: ShareMode;
+  onShareModeChange: (v: ShareMode) => void;
   error: string | null;
   onBack: () => void;
 }
@@ -52,12 +57,26 @@ const qualityColors: Record<QualityPreset, string> = {
   low: "text-amber-600 dark:text-amber-400",
 };
 
+const shareModeIcons: Record<ShareMode, typeof Monitor> = {
+  screen: Monitor,
+  window: AppWindow,
+  tab: Globe,
+};
+
+const shareModeColors: Record<ShareMode, string> = {
+  screen: "text-emerald-600 dark:text-emerald-400",
+  window: "text-teal-600 dark:text-teal-400",
+  tab: "text-cyan-600 dark:text-cyan-400",
+};
+
 export function ShareSetupView({
   onStartSharing,
   requireApproval,
   onToggleApproval,
   qualityPreset,
   onQualityChange,
+  shareMode,
+  onShareModeChange,
   error,
   onBack,
 }: ShareSetupViewProps) {
@@ -96,6 +115,60 @@ export function ShareSetupView({
             </motion.div>
           )}
 
+          {/* Share Mode Selector */}
+          <div className="rounded-xl border bg-muted/20 p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <LayoutGrid className="size-4 text-emerald-600 dark:text-emerald-400" />
+              <span className="text-sm font-semibold">Share Mode</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {(Object.entries(SHARE_MODE_CONFIG) as [ShareMode, typeof SHARE_MODE_CONFIG.screen][]).map(
+                ([key, config]) => {
+                  const Icon = shareModeIcons[key];
+                  const isSelected = shareMode === key;
+                  return (
+                    <motion.button
+                      key={key}
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => onShareModeChange(key)}
+                      className={`quality-card relative flex flex-col items-center gap-2 rounded-xl border-2 p-3 ${
+                        isSelected
+                          ? "selected border-emerald-500"
+                          : "border-transparent bg-background text-muted-foreground hover:border-border hover:bg-muted/50"
+                      }`}
+                    >
+                      <div className={`flex size-8 items-center justify-center rounded-lg transition-all duration-200 ${
+                        isSelected
+                          ? "bg-emerald-100 dark:bg-emerald-950/80"
+                          : "bg-muted/50"
+                      }`}>
+                        <Icon className={`size-4 ${shareModeColors[key]}`} />
+                      </div>
+                      <span className={`text-xs font-bold leading-none ${isSelected ? "text-emerald-600 dark:text-emerald-400" : ""}`}>
+                        {config.label.split(" ")[0]}
+                      </span>
+                      <span className={`text-[10px] leading-tight text-center ${isSelected ? "text-muted-foreground" : "text-muted-foreground/60"}`}>
+                        {config.label.split(" ").slice(1).join(" ")}
+                      </span>
+                      {isSelected && (
+                        <motion.div
+                          layoutId="share-mode-indicator"
+                          className="absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full bg-emerald-500 shadow-sm"
+                          transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                        >
+                          <Sparkles className="size-2.5 text-white" />
+                        </motion.div>
+                      )}
+                    </motion.button>
+                  );
+                }
+              )}
+            </div>
+          </div>
+
+          {/* Section divider */}
+          <div className="section-divider" />
+
           {/* Quality Presets */}
           <div className="rounded-xl border bg-muted/20 p-4">
             <div className="flex items-center gap-2 mb-4">
@@ -118,6 +191,10 @@ export function ShareSetupView({
                           : "border-transparent bg-background text-muted-foreground hover:border-border hover:bg-muted/50"
                       }`}
                     >
+                      {/* Recommended badge on 720p */}
+                      {key === "medium" && (
+                        <div className="badge-recommended">Recommended</div>
+                      )}
                       {/* Quality icon */}
                       <div className={`flex size-8 items-center justify-center rounded-lg transition-all duration-200 ${
                         isSelected
@@ -159,11 +236,11 @@ export function ShareSetupView({
             </div>
           </div>
 
-          {/* Section divider */}
+          {/* Section divider with fade-out edges */}
           <div className="section-divider" />
 
           {/* Approval toggle */}
-          <div className="flex items-center justify-between rounded-xl border bg-muted/20 p-4 transition-colors hover:bg-muted/30">
+          <div className="flex items-center justify-between rounded-xl border bg-muted/20 p-4 transition-all duration-300 hover:bg-muted/30 toggle-smooth">
             <div className="flex items-center gap-3">
               <div className="flex size-9 items-center justify-center rounded-lg bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-400 transition-transform duration-200">
                 <Shield className="size-4" />
@@ -184,7 +261,7 @@ export function ShareSetupView({
         <CardFooter className="flex-col gap-2 pt-2">
           <Button
             onClick={onStartSharing}
-            className="relative w-full overflow-hidden bg-emerald-600 text-white shadow-lg shadow-emerald-500/25 hover:bg-emerald-700 hover:shadow-xl hover:shadow-emerald-500/30 transition-all dark:bg-emerald-600 dark:hover:bg-emerald-700 h-12 text-base font-semibold"
+            className="btn-press btn-shine relative w-full overflow-hidden bg-emerald-600 text-white shadow-lg shadow-emerald-500/25 hover:bg-emerald-700 hover:shadow-xl hover:shadow-emerald-500/30 transition-all dark:bg-emerald-600 dark:hover:bg-emerald-700 h-12 text-base font-semibold"
             size="lg"
           >
             <span className="absolute inset-0 overflow-hidden rounded-md">

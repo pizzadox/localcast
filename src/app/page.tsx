@@ -6,6 +6,7 @@
 // each view's content to its dedicated component.
 
 import { motion, AnimatePresence } from "framer-motion";
+import { useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
@@ -31,7 +32,9 @@ import {
   Volume2,
   VolumeX,
   User,
+  Lightbulb,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import type { View } from "@/components/localcast/types";
 import { formatElapsed } from "@/components/localcast/types";
@@ -104,6 +107,8 @@ export default function Home() {
     setRequireApproval,
     qualityPreset,
     setQualityPreset,
+    shareMode,
+    setShareMode,
     // Viewer state
     viewerInput,
     setViewerInput,
@@ -156,6 +161,12 @@ export default function Home() {
     connectionLog,
     // Auto Quality
     isAutoQualityActive,
+    // Per-Viewer Quality
+    viewerQualities,
+    // Session Statistics
+    peakBitrate,
+    totalChatMessages,
+    totalReactions,
     // Refs
     videoRef,
     previewVideoRef,
@@ -176,6 +187,26 @@ export default function Home() {
   } = useLocalCast();
 
   const isSession = isSharing || currentView === "watching";
+
+  // ── Feature 3: Auto-join from URL param ?join=CODE ──
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const joinCode = params.get("join");
+    if (joinCode && joinCode.length === 6) {
+      const cleanCode = joinCode.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      if (cleanCode.length === 6) {
+        setViewerInput(cleanCode);
+        setCurrentView("join");
+        // Auto-join after a brief delay so UI renders first
+        const timer = setTimeout(() => {
+          joinRoom(cleanCode);
+          toast.info("Joining room from link...");
+        }, 500);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -235,6 +266,24 @@ export default function Home() {
                 <Eye className="size-3" />
                 Watching
               </Badge>
+            )}
+            {/* Connection Tips Button (during viewing when quality is poor) */}
+            {currentView === "watching" && connectionQuality === "poor" && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8 text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950"
+                onClick={() => {
+                  toast.warning("Connection Tips", {
+                    description: "• Try refreshing the page\n• Make sure both devices are on the same network\n• Check if a firewall is blocking connections\n• Try reducing other network usage",
+                    duration: 10000,
+                    id: "connection-tips-manual",
+                  });
+                }}
+                title="Connection troubleshooting tips"
+              >
+                <Lightbulb className="size-4" />
+              </Button>
             )}
             {/* Chat Toggle Button */}
             {isSession && (
@@ -309,6 +358,8 @@ export default function Home() {
               onToggleApproval={setRequireApproval}
               qualityPreset={qualityPreset}
               onQualityChange={setQualityPreset}
+              shareMode={shareMode}
+              onShareModeChange={setShareMode}
               error={error}
               onBack={() => {
                 setCurrentView("home");
@@ -322,6 +373,7 @@ export default function Home() {
               key="share-active"
               roomId={roomId}
               viewers={viewers}
+              viewerQualities={viewerQualities}
               requireApproval={requireApproval}
               copied={copied}
               previewVideoRef={previewVideoRef}
@@ -332,6 +384,9 @@ export default function Home() {
               elapsedTime={elapsedTime}
               connectionLog={connectionLog}
               isAutoQualityActive={isAutoQualityActive}
+              peakBitrate={peakBitrate}
+              totalChatMessages={totalChatMessages}
+              totalReactions={totalReactions}
               onCopyRoomCode={copyRoomCode}
               onShowQrDialog={() => setShowQrDialog(true)}
               onApproveViewer={approveViewer}

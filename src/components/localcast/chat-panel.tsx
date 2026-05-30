@@ -73,6 +73,7 @@ export function ChatPanel({
         exit={{ x: "100%" }}
         transition={{ type: "spring", damping: 30, stiffness: 300 }}
         className="fixed right-0 top-14 bottom-0 z-50 flex w-full max-w-sm flex-col border-l bg-background/95 backdrop-blur-xl shadow-2xl shadow-black/10 dark:bg-background/95"
+        style={{ boxShadow: "-4px 0 24px rgba(0,0,0,0.08)" }}
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b bg-muted/20 px-4 py-3">
@@ -104,12 +105,12 @@ export function ChatPanel({
         >
           {messages.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-              <div className="flex size-14 items-center justify-center rounded-2xl bg-muted/50">
-                <MessageCircle className="size-6 text-muted-foreground/40" />
+              <div className="flex size-16 items-center justify-center rounded-2xl bg-muted/30 empty-pulse-icon">
+                <MessageCircle className="size-7 text-muted-foreground/30" />
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground/70">No messages yet</p>
-                <p className="mt-0.5 text-xs text-muted-foreground/40">
+                <p className="text-sm font-medium text-muted-foreground/60">No messages yet</p>
+                <p className="mt-0.5 text-xs text-muted-foreground/35">
                   Say hello to start the conversation
                 </p>
               </div>
@@ -134,7 +135,7 @@ export function ChatPanel({
                         ) : (
                           <span className="badge-gradient-viewer">{msg.senderName}</span>
                         )}
-                        <span className="text-[10px] text-muted-foreground/40">
+                        <span className="text-[10px] text-muted-foreground/30">
                           {formatElapsed(Date.now() - msg.timestamp)} ago
                         </span>
                       </div>
@@ -178,7 +179,7 @@ export function ChatPanel({
 
         {/* Input */}
         <div className="border-t bg-muted/10 p-3">
-          <div className="flex items-center gap-2">
+          <div className="focus-ring-animated flex items-center gap-2 rounded-xl border border-transparent">
             <div className="relative flex-1">
               <Input
                 value={input}

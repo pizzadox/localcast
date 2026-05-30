@@ -53,6 +53,10 @@ export interface Reaction {
 
 export type QualityPreset = "high" | "medium" | "low";
 
+export type ShareMode = "screen" | "window" | "tab";
+
+export type ViewerConnectionQuality = "good" | "checking" | "disconnected";
+
 export interface QualityConfig {
   label: string;
   width: { ideal: number };
@@ -72,7 +76,8 @@ export type EventLogType =
   | "chat"
   | "reaction"
   | "quality_change"
-  | "auto_quality";
+  | "auto_quality"
+  | "url_join";
 
 export interface ConnectionLogEntry {
   id: string;
@@ -117,6 +122,13 @@ export const QUALITY_PRESETS: Record<QualityPreset, QualityConfig> = {
     frameRate: { ideal: 24 },
     bitrate: 1_000_000,
   },
+};
+
+/** Share mode configuration mapping. */
+export const SHARE_MODE_CONFIG: Record<ShareMode, { label: string; icon: string; displaySurface: string; description: string }> = {
+  screen: { label: "Entire Screen", icon: "🖥️", displaySurface: "monitor", description: "Share your entire screen" },
+  window: { label: "Application Window", icon: "🪟", displaySurface: "window", description: "Share a specific application" },
+  tab: { label: "Browser Tab", icon: "🌐", displaySurface: "browser", description: "Share a browser tab" },
 };
 
 /** Allowed reaction emojis (mirrors server-side whitelist). */

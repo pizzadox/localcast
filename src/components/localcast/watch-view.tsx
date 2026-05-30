@@ -4,7 +4,7 @@
 // Active viewing screen with playback controls and emoji reactions.
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -65,7 +65,26 @@ export function WatchView({
   onSendReaction,
 }: WatchViewProps) {
   const [showReactions, setShowReactions] = useState(false);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const controlsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const qualityClass = connectionQuality === "good" ? "quality-good" : connectionQuality === "fair" ? "quality-fair" : "quality-poor";
+  const latencyClass = latency < 50 ? "latency-good" : latency < 100 ? "latency-fair" : "latency-poor";
+
+  const handleMouseMove = useCallback(() => {
+    setControlsVisible(true);
+    if (controlsTimeout.current) {
+      clearTimeout(controlsTimeout.current);
+    }
+    controlsTimeout.current = setTimeout(() => {
+      setControlsVisible(false);
+    }, 3000);
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    controlsTimeout.current = setTimeout(() => {
+      setControlsVisible(false);
+    }, 1500);
+  }, []);
 
   return (
     <motion.div
@@ -77,8 +96,13 @@ export function WatchView({
       transition={{ duration: 0.3 }}
       className="flex w-full flex-col px-4 py-4"
     >
-      {/* Top Controls Bar */}
-      <div className="control-bar mb-3 flex items-center justify-between rounded-xl p-2">
+      {/* Top Controls Bar — fades on mouse idle */}
+      <div
+        className="control-bar mb-3 flex items-center justify-between rounded-xl p-2 control-bar-fade"
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        style={{ opacity: controlsVisible ? 1 : 0 }}
+      >
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
@@ -129,9 +153,9 @@ export function WatchView({
             {connectionQuality.charAt(0).toUpperCase() + connectionQuality.slice(1)}
           </Badge>
 
-          {/* Latency */}
+          {/* Latency — color-coded */}
           {latency > 0 && (
-            <Badge variant="outline" className="gap-1 font-mono text-[10px]">
+            <Badge variant="outline" className={`gap-1 font-mono text-[10px] ${latencyClass}`}>
               <Gauge className="size-3" />
               {latency}ms
             </Badge>
@@ -185,9 +209,16 @@ export function WatchView({
       </div>
 
       {/* Video Container with Vignette */}
-      <div
-        ref={containerRef}
-        className="vignette video-container flex flex-1 items-center justify-center overflow-hidden rounded-xl border shadow-xl shadow-black/20"
+      <div className="vignette video-bottom-gradient video-container flex flex-1 items-center justify-center overflow-hidden rounded-xl border shadow-xl shadow-black/20"
+        ref={(el) => {
+          // Attach mousemove listener to video container for controls auto-hide
+          if (el && !containerRef.current) {
+            containerRef.current = el;
+          }
+          if (el) {
+            el.onmousemove = handleMouseMove;
+          }
+        }}
         style={{ minHeight: "55vh" }}
       >
         {error ? (
@@ -313,7 +344,7 @@ export function WatchView({
                         onSendReaction(emoji);
                         setShowReactions(false);
                       }}
-                      className="reaction-btn flex size-9 items-center justify-center rounded-lg text-lg hover:bg-muted active:scale-95"
+                      className="reaction-btn flex size-9 items-center justify-center rounded-lg text-lg hover:bg-muted active:scale-90 transition-transform duration-150"
                     >
                       {emoji}
                     </motion.button>

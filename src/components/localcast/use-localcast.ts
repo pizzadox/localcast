@@ -24,10 +24,13 @@ import type {
   Reaction,
   QualityPreset,
   ConnectionLogEntry,
+  ShareMode,
+  ViewerConnectionQuality,
 } from "./types";
 import {
   ICE_CONFIG,
   QUALITY_PRESETS,
+  SHARE_MODE_CONFIG,
   parseDeviceInfo,
   generateId,
   playNotificationSound,
@@ -47,6 +50,8 @@ export interface UseLocalCastReturn {
   setRequireApproval: (v: boolean) => void;
   qualityPreset: QualityPreset;
   setQualityPreset: (v: QualityPreset) => void;
+  shareMode: ShareMode;
+  setShareMode: (v: ShareMode) => void;
 
   // Viewer
   viewerInput: string;
@@ -109,6 +114,16 @@ export interface UseLocalCastReturn {
   // Auto Quality
   isAutoQualityActive: boolean;
 
+  // Per-Viewer Connection Quality
+  viewerQualities: Record<string, ViewerConnectionQuality>;
+
+  // Session Statistics
+  peakBitrate: number;
+  totalChatMessages: number;
+  totalReactions: number;
+  showStatsDashboard: boolean;
+  setShowStatsDashboard: (v: boolean) => void;
+
   // Refs
   videoRef: RefObject<HTMLVideoElement | null>;
   previewVideoRef: RefObject<HTMLVideoElement | null>;
@@ -144,6 +159,7 @@ export function useLocalCast(): UseLocalCastReturn {
   const [isSharing, setIsSharing] = useState(false);
   const [requireApproval, setRequireApproval] = useState(false);
   const [qualityPreset, setQualityPreset] = useState<QualityPreset>("medium");
+  const [shareMode, setShareMode] = useState<ShareMode>("screen");
 
   // ── Viewer ──
   const [viewerInput, setViewerInput] = useState("");
@@ -226,6 +242,22 @@ export function useLocalCast(): UseLocalCastReturn {
   const autoQualityTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const poorQualitySinceRef = useRef<number>(0);
   const goodQualitySinceRef = useRef<number>(0);
+
+  // ── Per-Viewer Connection Quality ──
+  const [viewerQualities, setViewerQualities] = useState<Record<string, ViewerConnectionQuality>>({});
+
+  // ── Session Statistics ──
+  const peakBitrateRef = useRef(0);
+  const [peakBitrate, setPeakBitrate] = useState(0);
+  const totalChatMessagesRef = useRef(0);
+  const [totalChatMessages, setTotalChatMessages] = useState(0);
+  const totalReactionsRef = useRef(0);
+  const [totalReactions, setTotalReactions] = useState(0);
+  const [showStatsDashboard, setShowStatsDashboard] = useState(false);
+
+  // ── Troubleshooting ──
+  const troubleshootingToastShownRef = useRef(false);
+  const poorQualityViewerSinceRef = useRef<number>(0);
 
   // ═══════════════════════════════════════════════════════════════════════
   // REFS
@@ -475,6 +507,8 @@ export function useLocalCast(): UseLocalCastReturn {
     setIsAutoQualityActive(false);
     poorQualitySinceRef.current = 0;
     goodQualitySinceRef.current = 0;
+    troubleshootingToastShownRef.current = false;
+    poorQualityViewerSinceRef.current = 0;
     toast.dismiss("localcast-reconnect");
 
     // Clear reconnection timer
@@ -548,6 +582,14 @@ export function useLocalCast(): UseLocalCastReturn {
     setLatency(0);
     setCopied(false);
     setConnectionLog([]);
+    setViewerQualities({});
+    setPeakBitrate(0);
+    peakBitrateRef.current = 0;
+    setTotalChatMessages(0);
+    totalChatMessagesRef.current = 0;
+    setTotalReactions(0);
+    totalReactionsRef.current = 0;
+    setShowStatsDashboard(false);
   }, [removeAllListeners]);
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -605,15 +647,32 @@ export function useLocalCast(): UseLocalCastReturn {
 
       // Connection state monitoring
       pc.onconnectionstatechange = () => {
+        const state = pc.connectionState;
         if (
-          pc.connectionState === "disconnected" ||
-          pc.connectionState === "failed"
+          state === "disconnected" ||
+          state === "failed"
         ) {
+          setViewerQualities((prev) => ({ ...prev, [viewerId]: "disconnected" as const }));
           setViewers((prev) => prev.filter((v) => v.id !== viewerId));
           pc.close();
           peersRef.current.delete(viewerId);
           pendingCandidatesRef.current.delete(viewerId);
           toast.info("A viewer disconnected");
+        } else if (state === "connected") {
+          setViewerQualities((prev) => ({ ...prev, [viewerId]: "good" as const }));
+        } else if (state === "connecting" || state === "new") {
+          setViewerQualities((prev) => ({ ...prev, [viewerId]: "checking" as const }));
+        }
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        const state = pc.iceConnectionState;
+        if (state === "connected" || state === "completed") {
+          setViewerQualities((prev) => ({ ...prev, [viewerId]: "good" as const }));
+        } else if (state === "checking" || state === "new") {
+          setViewerQualities((prev) => ({ ...prev, [viewerId]: "checking" as const }));
+        } else if (state === "disconnected" || state === "failed" || state === "closed") {
+          setViewerQualities((prev) => ({ ...prev, [viewerId]: "disconnected" as const }));
         }
       };
     },
@@ -792,17 +851,37 @@ export function useLocalCast(): UseLocalCastReturn {
       setError(null);
 
       const preset = QUALITY_PRESETS[qualityPreset];
+      const modeConfig = SHARE_MODE_CONFIG[shareMode];
 
-      // Get screen media
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          displaySurface: "monitor",
-          width: preset.width,
-          height: preset.height,
-          frameRate: preset.frameRate,
-        },
-        audio: true,
-      });
+      // Get screen media with selected share mode
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            displaySurface: modeConfig.displaySurface as "monitor",
+            width: preset.width,
+            height: preset.height,
+            frameRate: preset.frameRate,
+          },
+          audio: true,
+        });
+      } catch {
+        // Fallback: if selected mode fails, try "monitor" (most widely supported)
+        if (modeConfig.displaySurface !== "monitor") {
+          toast.info(`"${modeConfig.label}" mode not supported, falling back to entire screen`);
+          stream = await navigator.mediaDevices.getDisplayMedia({
+            video: {
+              displaySurface: "monitor",
+              width: preset.width,
+              height: preset.height,
+              frameRate: preset.frameRate,
+            },
+            audio: true,
+          });
+        } else {
+          throw new Error("Screen sharing permission denied or unavailable.");
+        }
+      }
       localStreamRef.current = stream;
 
       // If user stops sharing via browser UI, stop session
@@ -891,6 +970,8 @@ export function useLocalCast(): UseLocalCastReturn {
             { ...data, id: data.id || generateId() },
           ]);
           setUnreadCount((c) => c + 1);
+          totalChatMessagesRef.current += 1;
+          setTotalChatMessages(totalChatMessagesRef.current);
           addConnectionLog("chat", `${data.senderName}: ${data.message}`);
           if (soundEnabled) playNotificationSound("chat");
         });
@@ -903,6 +984,8 @@ export function useLocalCast(): UseLocalCastReturn {
             timestamp: data.timestamp,
           };
           setRecentReactions((prev) => [...prev.slice(-19), reaction]);
+          totalReactionsRef.current += 1;
+          setTotalReactions(totalReactionsRef.current);
           setTimeout(() => {
             setRecentReactions((prev) =>
               prev.filter((r) => r.id !== reaction.id),
@@ -930,7 +1013,7 @@ export function useLocalCast(): UseLocalCastReturn {
       setConnectionStatus("disconnected");
       setError("Screen sharing permission denied or unavailable.");
     }
-  }, [qualityPreset, requireApproval, getOrCreateSocket, removeAllListeners, createBroadcasterPeer, handleBroadcasterSignal]);
+  }, [qualityPreset, shareMode, requireApproval, getOrCreateSocket, removeAllListeners, createBroadcasterPeer, handleBroadcasterSignal]);
 
   const stopSharing = useCallback(() => {
     cleanupAll();
@@ -1288,6 +1371,11 @@ export function useLocalCast(): UseLocalCastReturn {
       setTimeout(() => {
         if (totalBitrate > 0) {
           setCurrentBitrate(Math.round(totalBitrate));
+          // Track peak bitrate
+          if (totalBitrate > peakBitrateRef.current) {
+            peakBitrateRef.current = totalBitrate;
+            setPeakBitrate(Math.round(totalBitrate));
+          }
         }
         if (totalBytes > 0) {
           totalBytesSentRef.current = totalBytes;
@@ -1434,12 +1522,34 @@ export function useLocalCast(): UseLocalCastReturn {
     }
   }, [isSharing, connectionQuality, isAutoQualityActive, qualityPreset, applyBitrateToAllPeers, addConnectionLog]);
 
-  // ── Cleanup on unmount ──
+  // ── Troubleshooting Tips (viewer only) ──
   useEffect(() => {
-    return () => {
-      cleanupAll();
-    };
-  }, [cleanupAll]);
+    if (currentView !== "watching" || connectionQuality !== "poor") {
+      poorQualityViewerSinceRef.current = 0;
+      troubleshootingToastShownRef.current = false;
+      return;
+    }
+
+    const now = Date.now();
+    if (poorQualityViewerSinceRef.current === 0) {
+      poorQualityViewerSinceRef.current = now;
+    }
+    if (
+      now - poorQualityViewerSinceRef.current > 10000 &&
+      !troubleshootingToastShownRef.current
+    ) {
+      troubleshootingToastShownRef.current = true;
+      toast.warning("Connection quality is poor. Tips:", {
+        description: "• Try refreshing the page\n• Make sure both devices are on the same network\n• Check if a firewall is blocking connections",
+        duration: 8000,
+        id: "troubleshooting-tips",
+        action: {
+          label: "Dismiss",
+          onClick: () => troubleshootingToastShownRef.current = false,
+        },
+      });
+    }
+  }, [currentView, connectionQuality]);
 
   // ═══════════════════════════════════════════════════════════════════════
   // RETURN
@@ -1457,6 +1567,8 @@ export function useLocalCast(): UseLocalCastReturn {
     setRequireApproval,
     qualityPreset,
     setQualityPreset,
+    shareMode,
+    setShareMode,
 
     // Viewer
     viewerInput,
@@ -1518,6 +1630,16 @@ export function useLocalCast(): UseLocalCastReturn {
 
     // Auto Quality
     isAutoQualityActive,
+
+    // Per-Viewer Connection Quality
+    viewerQualities,
+
+    // Session Statistics
+    peakBitrate,
+    totalChatMessages,
+    totalReactions,
+    showStatsDashboard,
+    setShowStatsDashboard,
 
     // Refs
     videoRef,

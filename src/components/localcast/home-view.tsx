@@ -89,9 +89,15 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
       className="w-full max-w-5xl px-4 py-6 sm:py-10"
     >
       {/* ── Hero Section ──────────────────────────────────────────────────── */}
-      <div className="gradient-shift relative mb-12 overflow-hidden rounded-3xl sm:rounded-[2rem]">
+      <div className="gradient-shift relative mb-12 overflow-hidden rounded-2xl sm:rounded-[2rem]">
         {/* Gradient overlay */}
         <div className="absolute inset-0 hero-bg dark:hero-bg-dark" />
+
+        {/* Animated mesh grid pattern */}
+        <div className="absolute inset-0 mesh-grid opacity-60" />
+
+        {/* Noise texture overlay */}
+        <div className="absolute inset-0 noise-overlay" />
 
         {/* Floating particles */}
         {particles.map((p) => (
@@ -120,7 +126,7 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
         />
 
         {/* Inner border glow */}
-        <div className="absolute inset-0 rounded-3xl sm:rounded-[2rem] border border-white/20 dark:border-white/5 pointer-events-none" />
+        <div className="absolute inset-0 rounded-2xl sm:rounded-[2rem] border border-white/20 dark:border-white/5 pointer-events-none" />
 
         <div className="relative px-6 py-12 text-center sm:py-16 sm:px-12">
           <motion.div
@@ -138,9 +144,9 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1, duration: 0.5 }}
-              className="text-4xl font-black tracking-tight sm:text-6xl"
+              className="text-4xl font-black tracking-tight sm:text-6xl text-shadow-sm"
             >
-              <span className="text-gradient">LocalCast</span>
+              <span className="text-gradient text-shadow-emerald">LocalCast</span>
             </motion.h1>
             <motion.p
               initial={{ opacity: 0 }}
@@ -175,6 +181,9 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
         </div>
       </div>
 
+      {/* ── Gradient Divider ────────────────────────────────────────────── */}
+      <div className="section-divider mb-12" />
+
       {/* ── How It Works ──────────────────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -199,7 +208,7 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
               <div className="absolute -top-3 -left-3 flex size-6 items-center justify-center rounded-full bg-emerald-600 text-[11px] font-bold text-white shadow-md shadow-emerald-500/30">
                 {i + 1}
               </div>
-              <div className={`flex size-12 items-center justify-center rounded-2xl ${step.color} shadow-sm transition-all duration-300 group-hover:scale-110 group-hover:shadow-md`}>
+              <div className={`flex size-12 items-center justify-center rounded-2xl ${step.color} shadow-sm transition-all duration-300 group-hover:scale-110 group-hover:shadow-md icon-float-hover`}>
                 <step.icon className="size-6" />
               </div>
               <h3 className="text-sm font-bold">{step.title}</h3>
@@ -220,7 +229,7 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
       >
         {/* Share Screen Card */}
         <motion.div variants={fadeInUp}>
-          <Card className="glass-card group relative overflow-hidden cursor-pointer border-2 hover:scale-[1.02]">
+          <Card className="glass-card group relative overflow-hidden cursor-pointer border-2 transition-transform duration-300 hover:scale-[1.01]">
             {/* Top accent gradient */}
             <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500 opacity-80 transition-opacity group-hover:opacity-100" />
             <CardHeader className="pt-6">
@@ -240,7 +249,7 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
                   onClearError();
                   onNavigate("share");
                 }}
-                className="relative w-full overflow-hidden bg-emerald-600 text-white shadow-lg shadow-emerald-500/25 hover:bg-emerald-700 hover:shadow-xl hover:shadow-emerald-500/30 transition-all dark:bg-emerald-600 dark:hover:bg-emerald-700"
+                className="btn-press relative w-full overflow-hidden bg-emerald-600 text-white shadow-lg shadow-emerald-500/25 hover:bg-emerald-700 hover:shadow-xl hover:shadow-emerald-500/30 transition-all dark:bg-emerald-600 dark:hover:bg-emerald-700"
                 size="lg"
               >
                 <span className="absolute inset-0 overflow-hidden rounded-md">
@@ -262,7 +271,7 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
 
         {/* View Screen Card */}
         <motion.div variants={fadeInUp}>
-          <Card className="glass-card group relative overflow-hidden cursor-pointer border-2 hover:scale-[1.02]">
+          <Card className="glass-card group relative overflow-hidden cursor-pointer border-2 transition-transform duration-300 hover:scale-[1.01]">
             <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-teal-500 via-cyan-400 to-teal-500 opacity-80 transition-opacity group-hover:opacity-100" />
             <CardHeader className="pt-6">
               <div className="mb-3 flex size-14 items-center justify-center rounded-2xl bg-teal-100 text-teal-600 transition-all duration-300 group-hover:bg-teal-200 group-hover:shadow-lg group-hover:shadow-teal-500/20 dark:bg-teal-950 dark:text-teal-400 dark:group-hover:bg-teal-900">
@@ -281,7 +290,7 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
                   onClearError();
                   onNavigate("join");
                 }}
-                className="relative w-full overflow-hidden bg-teal-600 text-white shadow-lg shadow-teal-500/25 hover:bg-teal-700 hover:shadow-xl hover:shadow-teal-500/30 transition-all dark:bg-teal-600 dark:hover:bg-teal-700"
+                className="btn-press relative w-full overflow-hidden bg-teal-600 text-white shadow-lg shadow-teal-500/25 hover:bg-teal-700 hover:shadow-xl hover:shadow-teal-500/30 transition-all dark:bg-teal-600 dark:hover:bg-teal-700"
                 size="lg"
               >
                 <span className="absolute inset-0 overflow-hidden rounded-md">
@@ -302,6 +311,9 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
         </motion.div>
       </motion.div>
 
+      {/* ── Gradient Divider ────────────────────────────────────────────── */}
+      <div className="section-divider mb-12" />
+
       {/* ── Feature Grid ────────────────────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -320,7 +332,7 @@ export function HomeView({ onNavigate, onClearError }: HomeViewProps) {
               transition={{ delay: 0.6 + i * 0.05, duration: 0.3 }}
               className="group flex items-start gap-2.5 rounded-xl border bg-muted/20 p-3.5 transition-all duration-200 hover:bg-muted/40 hover:shadow-sm hover:border-emerald-200/50 dark:hover:border-emerald-800/30"
             >
-              <feat.icon className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400 transition-transform duration-200 group-hover:scale-110" />
+              <feat.icon className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400 icon-float-hover" />
               <div>
                 <p className="text-xs font-semibold">{feat.label}</p>
                 <p className="text-[11px] leading-tight text-muted-foreground/60">{feat.desc}</p>

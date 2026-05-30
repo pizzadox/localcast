@@ -2,7 +2,7 @@
 
 // ─── ShareActiveView ─────────────────────────────────────────────────────
 // Active screen sharing view with room code, preview, viewer list,
-// live stats, and controls.
+// live stats, session dashboard, and controls.
 
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -15,6 +15,13 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Collapsible,
   CollapsibleContent,
@@ -37,15 +44,21 @@ import {
   HardDrive,
   Eye,
   Radio,
+  TrendingUp,
+  MessageSquare,
+  Heart,
+  Maximize2,
+  Info,
 } from "lucide-react";
 
 import { useState } from "react";
 import { pageVariants, formatBytes, formatBitrate, formatElapsed } from "./types";
-import type { ViewerInfo } from "./types";
+import type { ViewerInfo, ViewerConnectionQuality } from "./types";
 
 interface ShareActiveViewProps {
   roomId: string;
   viewers: ViewerInfo[];
+  viewerQualities: Record<string, ViewerConnectionQuality>;
   requireApproval: boolean;
   copied: boolean;
   previewVideoRef: React.RefObject<HTMLVideoElement | null>;
@@ -54,6 +67,11 @@ interface ShareActiveViewProps {
   streamResolution: string;
   currentBitrate: number;
   elapsedTime: number;
+  connectionLog: { id: string; type: string; message: string; timestamp: number }[];
+  isAutoQualityActive: boolean;
+  peakBitrate: number;
+  totalChatMessages: number;
+  totalReactions: number;
   onCopyRoomCode: () => void;
   onShowQrDialog: () => void;
   onApproveViewer: (viewerId: string) => void;
@@ -62,9 +80,23 @@ interface ShareActiveViewProps {
   onStopSharing: () => void;
 }
 
+// Connection quality dot component
+function QualityDot({ quality }: { quality: ViewerConnectionQuality | undefined }) {
+  const colors = {
+    good: "bg-emerald-500",
+    checking: "bg-yellow-500 animate-pulse",
+    disconnected: "bg-red-500",
+  };
+  const q = quality || "checking";
+  return (
+    <span className={`inline-block size-2 rounded-full ${colors[q]}`} title={q === "good" ? "Connected" : q === "checking" ? "Connecting..." : "Disconnected"} />
+  );
+}
+
 export function ShareActiveView({
   roomId,
   viewers,
+  viewerQualities,
   requireApproval,
   copied,
   previewVideoRef,
@@ -73,6 +105,11 @@ export function ShareActiveView({
   streamResolution,
   currentBitrate,
   elapsedTime,
+  connectionLog,
+  isAutoQualityActive,
+  peakBitrate,
+  totalChatMessages,
+  totalReactions,
   onCopyRoomCode,
   onShowQrDialog,
   onApproveViewer,
@@ -81,9 +118,13 @@ export function ShareActiveView({
   onStopSharing,
 }: ShareActiveViewProps) {
   const [statsOpen, setStatsOpen] = useState(false);
+  const [dashboardOpen, setDashboardOpen] = useState(false);
 
   // Split room code into individual characters for animation
   const codeChars = roomId.split("");
+
+  // Compute average bitrate from current + peak
+  const avgBitrate = peakBitrate > 0 && currentBitrate > 0 ? Math.round((peakBitrate + currentBitrate) / 2) : currentBitrate;
 
   return (
     <motion.div
@@ -121,7 +162,7 @@ export function ShareActiveView({
                         initial={{ opacity: 0, scale: 0.5, y: 8 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         transition={{ delay: i * 0.08, type: "spring", stiffness: 400, damping: 20 }}
-                        className="inline-flex size-10 sm:size-12 items-center justify-center rounded-lg bg-emerald-100/80 font-mono text-2xl sm:text-3xl font-bold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
+                        className="room-code-char inline-flex size-10 sm:size-12 items-center justify-center rounded-lg bg-emerald-100/80 font-mono text-2xl sm:text-3xl font-bold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 cursor-default"
                       >
                         {char}
                       </motion.span>
@@ -173,14 +214,25 @@ export function ShareActiveView({
                   <Monitor className="size-4 text-muted-foreground" />
                   Stream Preview
                 </CardTitle>
-                <Badge variant="outline" className="text-[10px] gap-1 bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/50 dark:text-teal-300 dark:border-teal-800">
-                  <Radio className="size-2.5" />
-                  Live
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 gap-1.5 text-xs"
+                    onClick={() => setDashboardOpen(true)}
+                  >
+                    <BarChart3 className="size-3" />
+                    Session Stats
+                  </Button>
+                  <Badge variant="outline" className="text-[10px] gap-1 bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/50 dark:text-teal-300 dark:border-teal-800">
+                    <Radio className="size-2.5" />
+                    Live
+                  </Badge>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="video-container overflow-hidden rounded-xl border shadow-lg shadow-black/10">
+              <div className="video-container video-bottom-gradient overflow-hidden rounded-xl border shadow-lg shadow-black/10">
                 <video
                   ref={previewVideoRef}
                   autoPlay
@@ -231,12 +283,12 @@ export function ShareActiveView({
             </CardHeader>
             <CardContent className="px-4 pb-4">
               {viewers.length === 0 ? (
-                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-10 text-center bg-muted/10">
-                  <div className="relative mb-3 flex size-16 items-center justify-center">
+                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-12 text-center bg-muted/10">
+                  <div className="relative mb-4 flex size-20 items-center justify-center">
                     <span className="absolute inset-0 animate-ping rounded-full bg-emerald-400/10" />
                     <span className="absolute inset-3 animate-pulse rounded-full border-2 border-dashed border-emerald-400/20" />
                     <span className="absolute inset-6 animate-pulse rounded-full border-2 border-dashed border-emerald-400/15" style={{ animationDelay: "0.5s" }} />
-                    <Eye className="size-7 text-muted-foreground/30" />
+                    <Eye className="size-9 text-muted-foreground/25 empty-pulse-icon" />
                   </div>
                   <p className="text-sm font-medium text-muted-foreground/70">
                     Waiting for viewers...
@@ -247,12 +299,13 @@ export function ShareActiveView({
                 </div>
               ) : (
                 <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar pr-1">
-                  {viewers.map((viewer) => (
+                  {viewers.map((viewer, idx) => (
                     <motion.div
                       key={viewer.id}
                       initial={{ opacity: 0, x: -8 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: 8 }}
+                      transition={{ delay: 0.05 + idx * 0.06, duration: 0.3 }}
                       className={`group flex items-center justify-between rounded-xl border p-3 transition-all duration-200 hover:shadow-sm ${
                         viewer.approved
                           ? "border-l-4 border-l-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20"
@@ -268,8 +321,9 @@ export function ShareActiveView({
                           <Monitor className="size-4" />
                         </div>
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium">
+                          <p className="truncate text-sm font-medium flex items-center gap-1.5">
                             {viewer.browser} on {viewer.os}
+                            {viewer.approved && <QualityDot quality={viewerQualities[viewer.id]} />}
                           </p>
                           <div className="flex items-center gap-1.5">
                             {!viewer.approved && (
@@ -277,10 +331,16 @@ export function ShareActiveView({
                                 Pending
                               </Badge>
                             )}
-                            {viewer.approved && (
+                            {viewer.approved && viewerQualities[viewer.id] === "good" && (
                               <span className="flex items-center gap-0.5 text-[10px] text-emerald-600 dark:text-emerald-400">
                                 <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
                                 Watching
+                              </span>
+                            )}
+                            {viewer.approved && viewerQualities[viewer.id] === "checking" && (
+                              <span className="flex items-center gap-0.5 text-[10px] text-yellow-600 dark:text-yellow-400">
+                                <span className="size-1.5 rounded-full bg-yellow-500 animate-pulse" />
+                                Connecting
                               </span>
                             )}
                             {viewer.screenWidth && viewer.screenHeight && (
@@ -366,7 +426,7 @@ export function ShareActiveView({
                         initial={{ scale: 1.3, color: "#059669" }}
                         animate={{ scale: 1, color: "inherit" }}
                         transition={{ duration: 0.3 }}
-                        className="stat-number text-lg font-bold tabular-nums"
+                        className="stat-number text-lg font-bold tabular-nums tracking-tight"
                       >
                         {activePeerCount}
                       </motion.span>
@@ -374,17 +434,17 @@ export function ShareActiveView({
                     <div className="stat-card flex flex-col items-center gap-1 p-3 rounded-xl">
                       <Zap className="size-4 text-yellow-500 dark:text-yellow-400" />
                       <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Bitrate</span>
-                      <span className="stat-number text-sm font-bold tabular-nums">{formatBitrate(currentBitrate)}</span>
+                      <span className="stat-number text-sm font-bold tabular-nums tracking-tight">{formatBitrate(currentBitrate)}</span>
                     </div>
                     <div className="stat-card flex flex-col items-center gap-1 p-3 rounded-xl">
                       <Monitor className="size-4 text-teal-600 dark:text-teal-400" />
                       <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Resolution</span>
-                      <span className="stat-number text-xs font-bold tabular-nums leading-5">{streamResolution}</span>
+                      <span className="stat-number text-xs font-bold tabular-nums leading-5 tracking-tight">{streamResolution}</span>
                     </div>
                     <div className="stat-card flex flex-col items-center gap-1 p-3 rounded-xl">
                       <HardDrive className="size-4 text-teal-500 dark:text-teal-400" />
                       <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Data Sent</span>
-                      <span className="stat-number text-xs font-bold tabular-nums leading-5">{formatBytes(estimatedDataTransferred)}</span>
+                      <span className="stat-number text-xs font-bold tabular-nums leading-5 tracking-tight">{formatBytes(estimatedDataTransferred)}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -393,6 +453,87 @@ export function ShareActiveView({
           </Collapsible>
         </div>
       </div>
+
+      {/* ─── Session Statistics Dashboard Dialog ─────────────────────────── */}
+      <Dialog open={dashboardOpen} onOpenChange={setDashboardOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <TrendingUp className="size-5 text-emerald-600 dark:text-emerald-400" />
+              Session Statistics
+            </DialogTitle>
+            <DialogDescription>
+              Detailed statistics for the current sharing session.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-2">
+            {/* Session Time */}
+            <div className="flex flex-col items-center gap-1.5 rounded-xl border bg-muted/20 p-4">
+              <Clock className="size-5 text-emerald-600 dark:text-emerald-400" />
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Session Time</span>
+              <span className="text-lg font-bold tabular-nums">{formatElapsed(elapsedTime)}</span>
+            </div>
+
+            {/* Total Data Transferred */}
+            <div className="flex flex-col items-center gap-1.5 rounded-xl border bg-muted/20 p-4">
+              <HardDrive className="size-5 text-teal-600 dark:text-teal-400" />
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Data Sent</span>
+              <span className="text-lg font-bold tabular-nums">{formatBytes(estimatedDataTransferred)}</span>
+            </div>
+
+            {/* Current Bitrate */}
+            <div className="flex flex-col items-center gap-1.5 rounded-xl border bg-muted/20 p-4">
+              <Zap className="size-5 text-yellow-500 dark:text-yellow-400" />
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Current Bitrate</span>
+              <span className="text-lg font-bold tabular-nums">{formatBitrate(currentBitrate)}</span>
+            </div>
+
+            {/* Peak Bitrate */}
+            <div className="flex flex-col items-center gap-1.5 rounded-xl border bg-muted/20 p-4">
+              <TrendingUp className="size-5 text-orange-500 dark:text-orange-400" />
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Peak Bitrate</span>
+              <span className="text-lg font-bold tabular-nums">{formatBitrate(peakBitrate)}</span>
+            </div>
+
+            {/* Current Resolution */}
+            <div className="flex flex-col items-center gap-1.5 rounded-xl border bg-muted/20 p-4">
+              <Maximize2 className="size-5 text-blue-500 dark:text-blue-400" />
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Resolution</span>
+              <span className="text-lg font-bold tabular-nums leading-6">{streamResolution}</span>
+            </div>
+
+            {/* Viewers */}
+            <div className="flex flex-col items-center gap-1.5 rounded-xl border bg-muted/20 p-4">
+              <Users className="size-5 text-teal-600 dark:text-teal-400" />
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Viewers</span>
+              <span className="text-lg font-bold tabular-nums">
+                {activePeerCount}<span className="text-sm font-normal text-muted-foreground">/{viewers.length}</span>
+              </span>
+            </div>
+
+            {/* Chat Messages */}
+            <div className="flex flex-col items-center gap-1.5 rounded-xl border bg-muted/20 p-4">
+              <MessageSquare className="size-5 text-indigo-500 dark:text-indigo-400" />
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Chat Messages</span>
+              <span className="text-lg font-bold tabular-nums">{totalChatMessages}</span>
+            </div>
+
+            {/* Reactions */}
+            <div className="flex flex-col items-center gap-1.5 rounded-xl border bg-muted/20 p-4">
+              <Heart className="size-5 text-rose-500 dark:text-rose-400" />
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Reactions</span>
+              <span className="text-lg font-bold tabular-nums">{totalReactions}</span>
+            </div>
+          </div>
+
+          {isAutoQualityActive && (
+            <div className="mt-2 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+              <Info className="size-3.5 shrink-0" />
+              Auto quality adaptation is active — bitrate adjusts based on connection quality.
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 }
