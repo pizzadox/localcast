@@ -20,6 +20,7 @@ interface ViewerInfo {
 interface RoomSettings {
   maxViewers: number
   requireApproval: boolean
+  password?: string
   [key: string]: unknown
 }
 
@@ -159,7 +160,7 @@ io.on('connection', (socket: Socket) => {
   // -----------------------------------------------------------------------
   // 1. CREATE_ROOM
   // -----------------------------------------------------------------------
-  socket.on('CREATE_ROOM', (callback?: (response: unknown) => void) => {
+  socket.on('CREATE_ROOM', (payload?: { requireApproval?: boolean; password?: string }, callback?: (response: unknown) => void) => {
     try {
       // Prevent double-creation
       if (socketToRoom.has(socket.id)) {
@@ -188,7 +189,8 @@ io.on('connection', (socket: Socket) => {
         createdAt: Date.now(),
         settings: {
           maxViewers: 0, // 0 = unlimited
-          requireApproval: false,
+          requireApproval: payload?.requireApproval ?? false,
+          password: payload?.password || '',
         },
       }
 
@@ -217,9 +219,9 @@ io.on('connection', (socket: Socket) => {
   // -----------------------------------------------------------------------
   socket.on(
     'JOIN_ROOM',
-    (payload: { roomId: string }, callback?: (response: unknown) => void) => {
+    (payload: { roomId: string; password?: string }, callback?: (response: unknown) => void) => {
       try {
-        const { roomId } = payload
+        const { roomId, password } = payload
         const room = rooms.get(roomId)
 
         if (!room) {
@@ -229,6 +231,18 @@ io.on('connection', (socket: Socket) => {
           )
           callback?.({ success: false, error: 'Room not found' })
           return
+        }
+
+        // Password check
+        if (room.settings.password) {
+          if (!password || password !== room.settings.password) {
+            socket.emit('ROOM_PASSWORD_REQUIRED', { roomId, requiresPassword: true })
+            console.log(
+              `[${formatTimestamp()}] DENIED   socket=${socket.id} room=${roomId} (wrong/missing password)`,
+            )
+            callback?.({ success: false, error: 'Password required' })
+            return
+          }
         }
 
         // Prevent joining own room
@@ -670,7 +684,85 @@ io.on('connection', (socket: Socket) => {
   )
 
   // -----------------------------------------------------------------------
-  // 11. REACTION
+  // 12. PAUSE_STREAM / RESUME_STREAM (host controls)
+  // -----------------------------------------------------------------------
+  socket.on(
+    'PAUSE_STREAM',
+    (payload: { roomId: string }, callback?: (response: unknown) => void) => {
+      try {
+        const { roomId } = payload
+        const room = rooms.get(roomId)
+        if (!room || room.hostId !== socket.id) {
+          callback?.({ success: false, error: 'Not host' })
+          return
+        }
+        // Broadcast STREAM_PAUSED to all viewers
+        for (const [viewerId] of room.viewers) {
+          const viewerSocket = io.sockets.sockets.get(viewerId)
+          if (viewerSocket) {
+            viewerSocket.emit('STREAM_PAUSED', { roomId })
+          }
+        }
+        console.log(`[${formatTimestamp()}] PAUSE    room=${roomId}`)
+        callback?.({ success: true })
+      } catch (err) {
+        console.error(`[${formatTimestamp()}] ERROR    PAUSE_STREAM socket=${socket.id}`, err)
+        callback?.({ success: false, error: 'Internal server error' })
+      }
+    },
+  )
+
+  socket.on(
+    'RESUME_STREAM',
+    (payload: { roomId: string }, callback?: (response: unknown) => void) => {
+      try {
+        const { roomId } = payload
+        const room = rooms.get(roomId)
+        if (!room || room.hostId !== socket.id) {
+          callback?.({ success: false, error: 'Not host' })
+          return
+        }
+        // Broadcast STREAM_RESUMED to all viewers
+        for (const [viewerId] of room.viewers) {
+          const viewerSocket = io.sockets.sockets.get(viewerId)
+          if (viewerSocket) {
+            viewerSocket.emit('STREAM_RESUMED', { roomId })
+          }
+        }
+        console.log(`[${formatTimestamp()}] RESUME   room=${roomId}`)
+        callback?.({ success: true })
+      } catch (err) {
+        console.error(`[${formatTimestamp()}] ERROR    RESUME_STREAM socket=${socket.id}`, err)
+        callback?.({ success: false, error: 'Internal server error' })
+      }
+    },
+  )
+
+  // -----------------------------------------------------------------------
+  // 13. CHANGE_PASSWORD (host only)
+  // -----------------------------------------------------------------------
+  socket.on(
+    'CHANGE_PASSWORD',
+    (payload: { roomId: string; password: string }, callback?: (response: unknown) => void) => {
+      try {
+        const { roomId, password } = payload
+        const room = rooms.get(roomId)
+        if (!room || room.hostId !== socket.id) {
+          callback?.({ success: false, error: 'Not host' })
+          return
+        }
+        room.settings.password = password || ''
+        console.log(`[${formatTimestamp()}] PASSWD   room=${roomId} passwordSet=${!!password}`)
+        callback?.({ success: true })
+      } catch (err) {
+        console.error(`[${formatTimestamp()}] ERROR    CHANGE_PASSWORD socket=${socket.id}`, err)
+        callback?.({ success: false, error: 'Internal server error' })
+      }
+    },
+  )
+
+  // -----------------------------------------------------------------------
+  // 14. REACTION
   // -----------------------------------------------------------------------
   socket.on(
     'REACTION',

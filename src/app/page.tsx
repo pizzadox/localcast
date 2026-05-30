@@ -39,6 +39,7 @@ import { toast } from "sonner";
 import type { View } from "@/components/localcast/types";
 import { formatElapsed } from "@/components/localcast/types";
 import { useLocalCast } from "@/components/localcast/use-localcast";
+import type { IceConnectionInfo } from "@/components/localcast/use-localcast";
 import { HomeView } from "@/components/localcast/home-view";
 import { ShareSetupView } from "@/components/localcast/share-setup-view";
 import { ShareActiveView } from "@/components/localcast/share-active-view";
@@ -62,8 +63,8 @@ function StatusDot({ status }: { status: "disconnected" | "connecting" | "connec
   };
   return (
     <div className="flex items-center gap-2">
-      <span className={`inline-block size-2.5 rounded-full ${colors[status]}`} />
-      <span className="text-sm text-muted-foreground">{labels[status]}</span>
+      <span className={`inline-block size-2.5 rounded-full ${colors[status]} ${status === "connected" ? "status-dot-pulse" : ""}`} />
+      <span className={`text-sm ${status === "connected" ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}>{labels[status]}</span>
     </div>
   );
 }
@@ -78,12 +79,18 @@ function FloatingReactions({ reactions }: { reactions: { emoji: string; id: stri
           <motion.div
             key={r.id}
             initial={{ opacity: 0, scale: 0.5, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
+            animate={{ opacity: 1, scale: 1.2, y: 0 }}
             exit={{ opacity: 0, scale: 0.8, y: -30 }}
-            transition={{ duration: 0.4 }}
-            className="text-2xl"
+            transition={{ duration: 0.4, type: "spring", stiffness: 300, damping: 20 }}
+            className="text-2xl drop-shadow-lg"
           >
             {r.emoji}
+            <span
+              className="absolute inset-0 text-2xl opacity-40 blur-[1px]"
+              style={{ animation: "reaction-trail 0.8s ease-out forwards" }}
+            >
+              {r.emoji}
+            </span>
           </motion.div>
         ))}
       </AnimatePresence>
@@ -109,6 +116,12 @@ export default function Home() {
     setQualityPreset,
     shareMode,
     setShareMode,
+    // Room Password
+    roomPassword,
+    setRoomPassword,
+    roomRequiresPassword,
+    joinPassword,
+    setJoinPassword,
     // Viewer state
     viewerInput,
     setViewerInput,
@@ -167,6 +180,13 @@ export default function Home() {
     peakBitrate,
     totalChatMessages,
     totalReactions,
+    // Network Info
+    iceConnectionInfo,
+    showNetworkInfo,
+    setShowNetworkInfo,
+    // Pause/Resume
+    isPaused,
+    togglePause,
     // Refs
     videoRef,
     previewVideoRef,
@@ -183,6 +203,7 @@ export default function Home() {
     togglePiP,
     copyRoomCode,
     sendReaction,
+ changePassword,
     cleanupAll,
   } = useLocalCast();
 
@@ -209,9 +230,9 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="page-dot-grid min-h-screen flex flex-col bg-background">
       {/* ─── Header ─────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-md">
+      <header className="header-border-glow sticky top-0 z-40 w-full border-b border-b-emerald-100/50 dark:border-b-emerald-900/30 bg-background/80 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
           <button
             onClick={() => {
@@ -222,7 +243,7 @@ export default function Home() {
             }}
             className="flex items-center gap-2 font-semibold transition-opacity hover:opacity-80"
           >
-            <div className="flex size-7 items-center justify-center rounded-lg gradient-emerald">
+            <div className={`flex size-7 items-center justify-center rounded-lg gradient-emerald ${isSharing ? "logo-pulse-active" : ""}`}>
               <Monitor className="size-4 text-white" />
             </div>
             <span className="text-gradient text-lg font-bold">LocalCast</span>
@@ -360,6 +381,8 @@ export default function Home() {
               onQualityChange={setQualityPreset}
               shareMode={shareMode}
               onShareModeChange={setShareMode}
+              roomPassword={roomPassword}
+              onRoomPasswordChange={setRoomPassword}
               error={error}
               onBack={() => {
                 setCurrentView("home");
@@ -387,6 +410,11 @@ export default function Home() {
               peakBitrate={peakBitrate}
               totalChatMessages={totalChatMessages}
               totalReactions={totalReactions}
+              iceConnectionInfo={iceConnectionInfo}
+              showNetworkInfo={showNetworkInfo}
+              setShowNetworkInfo={setShowNetworkInfo}
+              isPaused={isPaused}
+              onTogglePause={togglePause}
               onCopyRoomCode={copyRoomCode}
               onShowQrDialog={() => setShowQrDialog(true)}
               onApproveViewer={approveViewer}
@@ -407,6 +435,9 @@ export default function Home() {
               onClearError={() => setError(null)}
               error={error}
               waitingApproval={waitingApproval}
+              roomRequiresPassword={roomRequiresPassword}
+              joinPassword={joinPassword}
+              onJoinPasswordChange={setJoinPassword}
               onBack={() => {
                 setCurrentView("home");
                 setViewerInput("");
@@ -430,6 +461,7 @@ export default function Home() {
               waitingApproval={waitingApproval}
               error={error}
               latency={latency}
+              isPaused={isPaused}
               isRecording={isRecording}
               recordingDuration={recordingDuration}
               onStartRecording={startRecording}
@@ -473,7 +505,7 @@ export default function Home() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.5, duration: 0.4 }}
-        className="mt-auto border-t"
+        className="mt-auto border-t border-t-emerald-100/30 dark:border-t-emerald-900/20"
       >
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 text-xs text-muted-foreground">
           <div className="flex items-center gap-1.5">
@@ -486,13 +518,13 @@ export default function Home() {
             <span>Peer-to-peer · No data leaves your network</span>
           </div>
           <div className="flex items-center gap-2">
-            <kbd className="hidden rounded border bg-muted/50 px-1.5 py-0.5 font-mono text-[10px] sm:inline-block">C</kbd>
+            <kbd className="hidden sm:inline-block kbd-gradient text-[10px]">C</kbd>
             <span className="hidden sm:inline">Chat</span>
             <span className="text-muted-foreground/30">·</span>
             <Button
               variant="ghost"
               size="icon"
-              className="size-6"
+              className="size-6 rounded-md transition-all duration-200 hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950/50 dark:hover:text-emerald-400"
               onClick={() => setShowShortcutsDialog(true)}
               title="Keyboard shortcuts"
             >
@@ -516,7 +548,7 @@ export default function Home() {
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col items-center gap-4 py-4">
-            <div className="rounded-xl border-2 border-emerald-200 bg-white p-4 dark:border-emerald-800 dark:bg-emerald-950/50">
+            <div className="rounded-xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-teal-50 p-4 shadow-lg shadow-emerald-500/10 dark:border-emerald-800 dark:from-emerald-950/80 dark:via-emerald-950/50 dark:to-teal-950/40">
               <QRCodeSVG
                 value={qrUrl}
                 size={200}

@@ -38,6 +38,13 @@ import {
 
 // ─── Hook Return Type ────────────────────────────────────────────────────
 
+export interface IceConnectionInfo {
+  localCandidate: string;
+  remoteCandidate: string;
+  transportProtocol: string;
+  iceConnectionState: string;
+}
+
 export interface UseLocalCastReturn {
   // View
   currentView: View;
@@ -52,6 +59,13 @@ export interface UseLocalCastReturn {
   setQualityPreset: (v: QualityPreset) => void;
   shareMode: ShareMode;
   setShareMode: (v: ShareMode) => void;
+
+  // Room Password
+  roomPassword: string;
+  setRoomPassword: (v: string) => void;
+  roomRequiresPassword: boolean;
+  joinPassword: string;
+  setJoinPassword: (v: string) => void;
 
   // Viewer
   viewerInput: string;
@@ -124,6 +138,15 @@ export interface UseLocalCastReturn {
   showStatsDashboard: boolean;
   setShowStatsDashboard: (v: boolean) => void;
 
+  // Network Info
+  iceConnectionInfo: IceConnectionInfo;
+  showNetworkInfo: boolean;
+  setShowNetworkInfo: (v: boolean) => void;
+
+  // Pause/Resume
+  isPaused: boolean;
+  togglePause: () => void;
+
   // Refs
   videoRef: RefObject<HTMLVideoElement | null>;
   previewVideoRef: RefObject<HTMLVideoElement | null>;
@@ -141,6 +164,7 @@ export interface UseLocalCastReturn {
   togglePiP: () => Promise<void>;
   copyRoomCode: () => Promise<void>;
   sendReaction: (emoji: string) => void;
+  changePassword: (newPassword: string) => void;
   cleanupAll: () => void;
 }
 
@@ -160,6 +184,11 @@ export function useLocalCast(): UseLocalCastReturn {
   const [requireApproval, setRequireApproval] = useState(false);
   const [qualityPreset, setQualityPreset] = useState<QualityPreset>("medium");
   const [shareMode, setShareMode] = useState<ShareMode>("screen");
+
+  // ── Room Password ──
+  const [roomPassword, setRoomPassword] = useState("");
+  const [roomRequiresPassword, setRoomRequiresPassword] = useState(false);
+  const [joinPassword, setJoinPassword] = useState("");
 
   // ── Viewer ──
   const [viewerInput, setViewerInput] = useState("");
@@ -254,6 +283,18 @@ export function useLocalCast(): UseLocalCastReturn {
   const totalReactionsRef = useRef(0);
   const [totalReactions, setTotalReactions] = useState(0);
   const [showStatsDashboard, setShowStatsDashboard] = useState(false);
+
+  // ── Network Info ──
+  const [iceConnectionInfo, setIceConnectionInfo] = useState<IceConnectionInfo>({
+    localCandidate: "",
+    remoteCandidate: "",
+    transportProtocol: "",
+    iceConnectionState: "",
+  });
+  const [showNetworkInfo, setShowNetworkInfo] = useState(false);
+
+  // ── Pause/Resume ──
+  const [isPaused, setIsPaused] = useState(false);
 
   // ── Troubleshooting ──
   const troubleshootingToastShownRef = useRef(false);
@@ -379,6 +420,58 @@ export function useLocalCast(): UseLocalCastReturn {
     });
   }, []);
 
+  // ── Pause/Resume Toggle ──
+  const togglePause = useCallback(() => {
+    if (!socketRef.current?.connected || !roomId) return;
+
+    if (!isPaused) {
+      // Pause: disable video tracks on all peer connections
+      peersRef.current.forEach((pc) => {
+        pc.getSenders().forEach((sender) => {
+          if (sender.track?.kind === "video") {
+            sender.track.enabled = false;
+          }
+        });
+      });
+      // Also disable local stream track for preview
+      if (localStreamRef.current) {
+        localStreamRef.current.getVideoTracks().forEach((t) => {
+          t.enabled = false;
+        });
+      }
+      socketRef.current.emit("PAUSE_STREAM", { roomId });
+      setIsPaused(true);
+      toast.info("Screen sharing paused");
+      addConnectionLog("quality_change", "Stream paused by host");
+    } else {
+      // Resume: re-enable video tracks
+      peersRef.current.forEach((pc) => {
+        pc.getSenders().forEach((sender) => {
+          if (sender.track?.kind === "video") {
+            sender.track.enabled = true;
+          }
+        });
+      });
+      if (localStreamRef.current) {
+        localStreamRef.current.getVideoTracks().forEach((t) => {
+          t.enabled = true;
+        });
+      }
+      socketRef.current.emit("RESUME_STREAM", { roomId });
+      setIsPaused(false);
+      toast.success("Screen sharing resumed");
+      addConnectionLog("quality_change", "Stream resumed by host");
+    }
+  }, [isPaused, roomId, addConnectionLog]);
+
+  // ── Change Password ──
+  const changePassword = useCallback((newPassword: string) => {
+    if (!socketRef.current?.connected || !roomId) return;
+    socketRef.current.emit("CHANGE_PASSWORD", { roomId, password: newPassword });
+    setRoomPassword(newPassword);
+    toast.success(newPassword ? "Room password updated" : "Room password removed");
+  }, [roomId]);
+
   // ── Derived ──
   const activePeerCount = viewers.filter((v) => v.approved).length;
   const pipSupported =
@@ -461,6 +554,7 @@ export function useLocalCast(): UseLocalCastReturn {
       "ROOM_CREATED",
       "ROOM_JOINED",
       "ROOM_NOT_FOUND",
+      "ROOM_PASSWORD_REQUIRED",
       "VIEWER_JOINED",
       "VIEWER_DISCONNECTED",
       "VIEWER_APPROVED",
@@ -472,6 +566,8 @@ export function useLocalCast(): UseLocalCastReturn {
       "SERVER_SHUTDOWN",
       "CHAT_MESSAGE",
       "REACTION",
+      "STREAM_PAUSED",
+      "STREAM_RESUMED",
       "VIEWER_COUNT_UPDATE",
       "ROOM_SETTINGS_UPDATED",
     ];
@@ -581,6 +677,8 @@ export function useLocalCast(): UseLocalCastReturn {
     setEstimatedDataTransferred(0);
     setLatency(0);
     setCopied(false);
+    setRoomRequiresPassword(false);
+    setJoinPassword("");
     setConnectionLog([]);
     setViewerQualities({});
     setPeakBitrate(0);
@@ -590,6 +688,9 @@ export function useLocalCast(): UseLocalCastReturn {
     setTotalReactions(0);
     totalReactionsRef.current = 0;
     setShowStatsDashboard(false);
+    setIceConnectionInfo({ localCandidate: "", remoteCandidate: "", transportProtocol: "", iceConnectionState: "" });
+    setShowNetworkInfo(false);
+    setIsPaused(false);
   }, [removeAllListeners]);
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -638,9 +739,15 @@ export function useLocalCast(): UseLocalCastReturn {
       // ICE candidate → trickle to viewer
       pc.onicecandidate = (event) => {
         if (event.candidate) {
+          const cand = event.candidate;
+          setIceConnectionInfo((prev) => ({
+            ...prev,
+            localCandidate: cand.candidate || prev.localCandidate,
+            transportProtocol: cand.protocol || prev.transportProtocol,
+          }));
           socket.emit("WEBRTC_SIGNAL", {
             targetId: viewerId,
-            signal: event.candidate.toJSON(),
+            signal: cand.toJSON(),
           });
         }
       };
@@ -667,6 +774,7 @@ export function useLocalCast(): UseLocalCastReturn {
 
       pc.oniceconnectionstatechange = () => {
         const state = pc.iceConnectionState;
+        setIceConnectionInfo((prev) => ({ ...prev, iceConnectionState: state }));
         if (state === "connected" || state === "completed") {
           setViewerQualities((prev) => ({ ...prev, [viewerId]: "good" as const }));
         } else if (state === "checking" || state === "new") {
@@ -757,9 +865,15 @@ export function useLocalCast(): UseLocalCastReturn {
 
         pc.onicecandidate = (event) => {
           if (event.candidate) {
+            const cand = event.candidate;
+            setIceConnectionInfo((prev) => ({
+              ...prev,
+              remoteCandidate: cand.candidate || prev.remoteCandidate,
+              transportProtocol: cand.protocol || prev.transportProtocol,
+            }));
             socket.emit("WEBRTC_SIGNAL", {
               targetId: broadcasterId,
-              signal: event.candidate.toJSON(),
+              signal: cand.toJSON(),
             });
           }
         };
@@ -778,6 +892,8 @@ export function useLocalCast(): UseLocalCastReturn {
         };
 
         pc.oniceconnectionstatechange = () => {
+          const state = pc.iceConnectionState;
+          setIceConnectionInfo((prev) => ({ ...prev, iceConnectionState: state }));
           switch (pc.iceConnectionState) {
             case "connected":
             case "completed":
@@ -903,7 +1019,7 @@ export function useLocalCast(): UseLocalCastReturn {
 
       socket.on("connect", () => {
         // Create room
-        socket.emit("CREATE_ROOM", { requireApproval });
+        socket.emit("CREATE_ROOM", { requireApproval, password: roomPassword });
 
         socket.on("ROOM_CREATED", (data: { roomId: string; roomInfo?: { hostId: string } }) => {
           setRoomId(data.roomId);
@@ -1013,7 +1129,7 @@ export function useLocalCast(): UseLocalCastReturn {
       setConnectionStatus("disconnected");
       setError("Screen sharing permission denied or unavailable.");
     }
-  }, [qualityPreset, shareMode, requireApproval, getOrCreateSocket, removeAllListeners, createBroadcasterPeer, handleBroadcasterSignal]);
+  }, [qualityPreset, shareMode, requireApproval, roomPassword, getOrCreateSocket, removeAllListeners, createBroadcasterPeer, handleBroadcasterSignal]);
 
   const stopSharing = useCallback(() => {
     cleanupAll();
@@ -1098,7 +1214,7 @@ export function useLocalCast(): UseLocalCastReturn {
       });
 
       socket.on("connect", () => {
-        socket.emit("JOIN_ROOM", { roomId: code });
+        socket.emit("JOIN_ROOM", { roomId: code, password: joinPassword });
 
         socket.on(
           "ROOM_JOINED",
@@ -1161,6 +1277,21 @@ export function useLocalCast(): UseLocalCastReturn {
           setConnectionStatus("disconnected");
         });
 
+        socket.on("ROOM_PASSWORD_REQUIRED", () => {
+          setRoomRequiresPassword(true);
+          toast.error("This room requires a password");
+          setError("This room is password protected. Please enter the password.");
+          setConnectionStatus("disconnected");
+        });
+
+        socket.on("STREAM_PAUSED", () => {
+          toast.info("Host paused the stream");
+        });
+
+        socket.on("STREAM_RESUMED", () => {
+          toast.success("Stream resumed");
+        });
+
         socket.on("KICKED", () => {
           toast.error("You were removed from the room");
           setError("You were removed from the room by the host.");
@@ -1195,7 +1326,7 @@ export function useLocalCast(): UseLocalCastReturn {
         setConnectionStatus("disconnected");
       });
     },
-    [getOrCreateSocket, removeAllListeners, handleViewerSignal, cleanupAll, viewerInput, displayName, soundEnabled],
+    [getOrCreateSocket, removeAllListeners, handleViewerSignal, cleanupAll, viewerInput, joinPassword, displayName, soundEnabled],
   );
 
   const leaveRoom = useCallback(() => {
@@ -1570,6 +1701,13 @@ export function useLocalCast(): UseLocalCastReturn {
     shareMode,
     setShareMode,
 
+    // Room Password
+    roomPassword,
+    setRoomPassword,
+    roomRequiresPassword,
+    joinPassword,
+    setJoinPassword,
+
     // Viewer
     viewerInput,
     setViewerInput,
@@ -1641,6 +1779,15 @@ export function useLocalCast(): UseLocalCastReturn {
     showStatsDashboard,
     setShowStatsDashboard,
 
+    // Network Info
+    iceConnectionInfo,
+    showNetworkInfo,
+    setShowNetworkInfo,
+
+    // Pause/Resume
+    isPaused,
+    togglePause,
+
     // Refs
     videoRef,
     previewVideoRef,
@@ -1658,6 +1805,7 @@ export function useLocalCast(): UseLocalCastReturn {
     togglePiP,
     copyRoomCode,
     sendReaction,
+    changePassword,
     cleanupAll,
   };
 }

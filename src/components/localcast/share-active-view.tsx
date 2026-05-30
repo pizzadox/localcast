@@ -49,11 +49,14 @@ import {
   Heart,
   Maximize2,
   Info,
+  Network,
+  Pause,
+  Play,
 } from "lucide-react";
 
 import { useState } from "react";
 import { pageVariants, formatBytes, formatBitrate, formatElapsed } from "./types";
-import type { ViewerInfo, ViewerConnectionQuality } from "./types";
+import type { ViewerInfo, ViewerConnectionQuality, IceConnectionInfo } from "./types";
 
 interface ShareActiveViewProps {
   roomId: string;
@@ -72,6 +75,11 @@ interface ShareActiveViewProps {
   peakBitrate: number;
   totalChatMessages: number;
   totalReactions: number;
+  iceConnectionInfo: IceConnectionInfo;
+  showNetworkInfo: boolean;
+  setShowNetworkInfo: (v: boolean) => void;
+  isPaused: boolean;
+  onTogglePause: () => void;
   onCopyRoomCode: () => void;
   onShowQrDialog: () => void;
   onApproveViewer: (viewerId: string) => void;
@@ -110,6 +118,11 @@ export function ShareActiveView({
   peakBitrate,
   totalChatMessages,
   totalReactions,
+  iceConnectionInfo,
+  showNetworkInfo,
+  setShowNetworkInfo,
+  isPaused,
+  onTogglePause,
   onCopyRoomCode,
   onShowQrDialog,
   onApproveViewer,
@@ -119,6 +132,7 @@ export function ShareActiveView({
 }: ShareActiveViewProps) {
   const [statsOpen, setStatsOpen] = useState(false);
   const [dashboardOpen, setDashboardOpen] = useState(false);
+  const [networkInfoOpen, setNetworkInfoOpen] = useState(false);
 
   // Split room code into individual characters for animation
   const codeChars = roomId.split("");
@@ -219,6 +233,15 @@ export function ShareActiveView({
                     variant="outline"
                     size="sm"
                     className="h-7 gap-1.5 text-xs"
+                    onClick={() => setShowNetworkInfo(!showNetworkInfo)}
+                  >
+                    <Network className="size-3" />
+                    Network Info
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 gap-1.5 text-xs"
                     onClick={() => setDashboardOpen(true)}
                   >
                     <BarChart3 className="size-3" />
@@ -232,7 +255,7 @@ export function ShareActiveView({
               </div>
             </CardHeader>
             <CardContent>
-              <div className="video-container video-bottom-gradient overflow-hidden rounded-xl border shadow-lg shadow-black/10">
+              <div className="video-container video-bottom-gradient overflow-hidden rounded-xl border shadow-lg shadow-black/10 relative">
                 <video
                   ref={previewVideoRef}
                   autoPlay
@@ -240,6 +263,21 @@ export function ShareActiveView({
                   muted
                   className="aspect-video w-full object-contain"
                 />
+                {/* PAUSED overlay */}
+                {isPaused && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm z-10"
+                  >
+                    <div className="flex size-16 items-center justify-center rounded-full bg-white/10">
+                      <Pause className="size-8 text-white" />
+                    </div>
+                    <p className="mt-3 text-lg font-bold text-white">PAUSED</p>
+                    <p className="text-xs text-white/60">Screen sharing is paused</p>
+                  </motion.div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -390,16 +428,111 @@ export function ShareActiveView({
               )}
             </CardContent>
             <CardFooter className="flex-col gap-2">
-              <Button
-                variant="destructive"
-                className="w-full shadow-sm"
-                onClick={onStopSharing}
-              >
-                <MonitorUp className="size-4" />
-                Stop Sharing
-              </Button>
+              <div className="flex w-full gap-2">
+                <Button
+                  variant="destructive"
+                  className="flex-1 shadow-sm"
+                  onClick={onStopSharing}
+                >
+                  <MonitorUp className="size-4" />
+                  Stop Sharing
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1 gap-1.5"
+                  onClick={onTogglePause}
+                >
+                  {isPaused ? (
+                    <>
+                      <Play className="size-4" />
+                      Resume
+                    </>
+                  ) : (
+                    <>
+                      <Pause className="size-4" />
+                      Pause
+                    </>
+                  )}
+                </Button>
+              </div>
             </CardFooter>
           </Card>
+
+          {/* Network Info Panel */}
+          <AnimatePresence>
+            {showNetworkInfo && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                transition={{ duration: 0.2 }}
+              >
+                <Card className="glass-card overflow-hidden">
+                  <CardHeader className="py-3">
+                    <div className="flex w-full items-center justify-between">
+                      <CardTitle className="flex items-center gap-2 text-sm">
+                        <Network className="size-4 text-muted-foreground" />
+                        Network Details
+                      </CardTitle>
+                      <button
+                        onClick={() => setShowNetworkInfo(false)}
+                        className="text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <X className="size-4" />
+                      </button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0 pb-4">
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-2 rounded-lg bg-muted/30 p-3">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">ICE Connection State</p>
+                          <p className="mt-0.5 text-sm font-mono font-medium tabular-nums">
+                            {iceConnectionInfo.iceConnectionState || "—"}
+                          </p>
+                        </div>
+                        <Badge
+                          variant={
+                            iceConnectionInfo.iceConnectionState === "connected" || iceConnectionInfo.iceConnectionState === "completed"
+                              ? "secondary"
+                              : iceConnectionInfo.iceConnectionState === "checking" || iceConnectionInfo.iceConnectionState === "new"
+                                ? "outline"
+                                : "destructive"
+                          }
+                          className="shrink-0 text-[10px]"
+                        >
+                          {iceConnectionInfo.iceConnectionState || "unknown"}
+                        </Badge>
+                      </div>
+                      <div className="rounded-lg bg-muted/30 p-3">
+                        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Local Candidate</p>
+                        <p className="mt-0.5 text-xs font-mono text-muted-foreground break-all leading-relaxed max-h-12 overflow-y-auto">
+                          {iceConnectionInfo.localCandidate || "Waiting for ICE candidates..."}
+                        </p>
+                      </div>
+                      <div className="rounded-lg bg-muted/30 p-3">
+                        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Remote Candidate</p>
+                        <p className="mt-0.5 text-xs font-mono text-muted-foreground break-all leading-relaxed max-h-12 overflow-y-auto">
+                          {iceConnectionInfo.remoteCandidate || "Waiting for remote candidates..."}
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between rounded-lg bg-muted/30 p-3">
+                        <div>
+                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Transport Protocol</p>
+                          <p className="mt-0.5 text-sm font-mono font-medium tabular-nums">
+                            {iceConnectionInfo.transportProtocol || "—"}
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="text-[10px]">
+                          {iceConnectionInfo.transportProtocol === "udp" ? "UDP" : iceConnectionInfo.transportProtocol === "tcp" ? "TCP" : "—"}
+                        </Badge>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Connection Stats Panel */}
           <Collapsible open={statsOpen} onOpenChange={setStatsOpen}>

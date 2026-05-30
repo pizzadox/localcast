@@ -8,7 +8,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { X, Send, MonitorUp, MessageCircle } from "lucide-react";
-
 import type { ChatMessage } from "./types";
 import { formatElapsed } from "./types";
 
@@ -75,14 +74,17 @@ export function ChatPanel({
         className="fixed right-0 top-14 bottom-0 z-50 flex w-full max-w-sm flex-col border-l bg-background/95 backdrop-blur-xl shadow-2xl shadow-black/10 dark:bg-background/95"
         style={{ boxShadow: "-4px 0 24px rgba(0,0,0,0.08)" }}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b bg-muted/20 px-4 py-3">
+        {/* Header with gradient */}
+        <div className="chat-header-gradient flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2.5">
             <div className="flex size-8 items-center justify-center rounded-xl gradient-emerald shadow-sm shadow-emerald-500/20">
               <MonitorUp className="size-4 text-white" />
             </div>
             <div>
-              <h3 className="text-sm font-semibold">Session Chat</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold">Session Chat</h3>
+                <span className="online-dot" />
+              </div>
               <p className="text-[11px] text-muted-foreground">
                 {messages.length} message{messages.length !== 1 ? "s" : ""}
               </p>
@@ -101,12 +103,21 @@ export function ChatPanel({
         {/* Messages */}
         <div
           ref={scrollRef}
-          className="flex-1 overflow-y-auto px-4 py-3 custom-scrollbar"
+          className="flex-1 overflow-y-auto px-4 py-3 custom-scrollbar scroll-smooth"
         >
           {messages.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-              <div className="flex size-16 items-center justify-center rounded-2xl bg-muted/30 empty-pulse-icon">
-                <MessageCircle className="size-7 text-muted-foreground/30" />
+              <div className="relative">
+                <div className="flex size-16 items-center justify-center rounded-2xl bg-muted/30 empty-pulse-icon">
+                  <MessageCircle className="size-7 text-muted-foreground/30" />
+                </div>
+                <motion.div
+                  animate={{ opacity: [0.2, 0.5, 0.2], scale: [0.95, 1, 0.95] }}
+                  transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                  className="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950/50"
+                >
+                  <span className="size-2 rounded-full bg-emerald-400" />
+                </motion.div>
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground/60">No messages yet</p>
@@ -130,6 +141,7 @@ export function ChatPanel({
                     {/* Show sender name only if different from previous */}
                     {(idx === 0 || messages[idx - 1]?.senderId !== msg.senderId) && (
                       <div className={`flex items-center gap-1.5 mb-1 ${isOwn ? "flex-row-reverse" : ""}`}>
+                        <span className="online-dot" />
                         {msg.senderType === "host" ? (
                           <span className="badge-gradient-host">Host</span>
                         ) : (

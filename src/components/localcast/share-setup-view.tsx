@@ -28,10 +28,14 @@ import {
   LayoutGrid,
   AppWindow,
   Globe,
+  Lock,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 import { pageVariants, QUALITY_PRESETS, SHARE_MODE_CONFIG } from "./types";
 import type { QualityPreset, ShareMode } from "./types";
+import { useState } from "react";
 
 interface ShareSetupViewProps {
   onStartSharing: () => void;
@@ -41,6 +45,8 @@ interface ShareSetupViewProps {
   onQualityChange: (v: QualityPreset) => void;
   shareMode: ShareMode;
   onShareModeChange: (v: ShareMode) => void;
+  roomPassword: string;
+  onRoomPasswordChange: (v: string) => void;
   error: string | null;
   onBack: () => void;
 }
@@ -77,9 +83,13 @@ export function ShareSetupView({
   onQualityChange,
   shareMode,
   onShareModeChange,
+  roomPassword,
+  onRoomPasswordChange,
   error,
   onBack,
 }: ShareSetupViewProps) {
+  const [showPasswordField, setShowPasswordField] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   return (
     <motion.div
       key="share-setup"
@@ -209,6 +219,11 @@ export function ShareSetupView({
                         {config.label}
                       </span>
 
+                      {/* Quality hint */}
+                      <p className="text-center text-[9px] leading-tight text-muted-foreground/50 px-1">
+                        {key === "high" ? "Best for fast WiFi" : key === "medium" ? "Great for most networks" : "For limited bandwidth"}
+                      </p>
+
                       {/* Quality details */}
                       <div className="flex flex-col items-center gap-0.5">
                         <span className="text-[10px] font-medium text-muted-foreground">
@@ -239,16 +254,74 @@ export function ShareSetupView({
           {/* Section divider with fade-out edges */}
           <div className="section-divider" />
 
+          {/* Password Protection toggle */}
+          <div className="rounded-xl border bg-muted/20 p-4 transition-all duration-300 hover:bg-muted/30 toggle-smooth">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex size-9 items-center justify-center rounded-lg bg-rose-100 text-rose-600 dark:bg-rose-950 dark:text-rose-400 transition-transform duration-200">
+                  <Lock className="size-4" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Password Protection</p>
+                  <p className="text-xs text-muted-foreground">
+                    Require a password for viewers to join
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={showPasswordField}
+                onCheckedChange={(checked) => {
+                  setShowPasswordField(checked);
+                  if (!checked) onRoomPasswordChange("");
+                }}
+              />
+            </div>
+            {showPasswordField && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mt-3"
+              >
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={roomPassword}
+                    onChange={(e) => onRoomPasswordChange(e.target.value)}
+                    placeholder="Enter room password"
+                    className="glass-input w-full rounded-lg border px-3 py-2 pr-10 text-sm outline-none transition-all focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20"
+                    maxLength={32}
+                    aria-label="Room password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </div>
+
+          {/* Section divider */}
+          <div className="section-divider" />
+
           {/* Approval toggle */}
-          <div className="flex items-center justify-between rounded-xl border bg-muted/20 p-4 transition-all duration-300 hover:bg-muted/30 toggle-smooth">
+          <div className={`approval-glow flex items-center justify-between rounded-xl border bg-muted/20 p-4 transition-all duration-300 hover:bg-muted/30 toggle-smooth ${requireApproval ? "active" : ""}`}>
             <div className="flex items-center gap-3">
-              <div className="flex size-9 items-center justify-center rounded-lg bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-400 transition-transform duration-200">
+              <div className={`flex size-9 items-center justify-center rounded-lg transition-all duration-300 ${requireApproval ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400" : "bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-400"}`}>
                 <Shield className="size-4" />
               </div>
               <div>
                 <p className="text-sm font-medium">Require Approval</p>
                 <p className="text-xs text-muted-foreground">
                   Viewers must be approved before they can see your screen
+                  {requireApproval && (
+                    <span className="ml-1 text-emerald-600 dark:text-emerald-400">· Enabled</span>
+                  )}
                 </p>
               </div>
             </div>
@@ -258,10 +331,12 @@ export function ShareSetupView({
             />
           </div>
         </CardContent>
-        <CardFooter className="flex-col gap-2 pt-2">
+        <CardFooter className="relative flex-col gap-2 pt-2">
+          {/* Bottom gradient bar (mirrors top) */}
+          <div className="absolute bottom-0 left-0 right-0 h-0.5 gradient-emerald opacity-40" />
           <Button
             onClick={onStartSharing}
-            className="btn-press btn-shine relative w-full overflow-hidden bg-emerald-600 text-white shadow-lg shadow-emerald-500/25 hover:bg-emerald-700 hover:shadow-xl hover:shadow-emerald-500/30 transition-all dark:bg-emerald-600 dark:hover:bg-emerald-700 h-12 text-base font-semibold"
+            className="btn-press btn-shine btn-disabled-enhanced relative w-full overflow-hidden bg-emerald-600 text-white shadow-lg shadow-emerald-500/25 hover:bg-emerald-700 hover:shadow-xl hover:shadow-emerald-500/30 transition-all dark:bg-emerald-600 dark:hover:bg-emerald-700 h-12 text-base font-semibold disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed"
             size="lg"
           >
             <span className="absolute inset-0 overflow-hidden rounded-md">

@@ -999,6 +999,291 @@
   .empty-pulse-icon {
     animation: empty-pulse 3s ease-in-out infinite;
   }
+
+  /* ===== NEW: Animated Border Glow ===== */
+
+  .animate-border-glow {
+    animation: border-glow 3s ease-in-out infinite;
+  }
+  .dark .animate-border-glow {
+    animation: border-glow-dark 3s ease-in-out infinite;
+  }
+
+  /* ===== NEW: Kbd Gradient Background ===== */
+
+  .kbd-gradient {
+    background: linear-gradient(135deg, rgba(5, 150, 105, 0.08), rgba(13, 148, 136, 0.12));
+    border: 1px solid rgba(5, 150, 105, 0.2);
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: var(--font-mono), monospace;
+    box-shadow: 0 1px 2px rgba(5, 150, 105, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    color: #059669;
+    transition: all 0.2s ease;
+  }
+  .dark .kbd-gradient {
+    background: linear-gradient(135deg, rgba(5, 150, 105, 0.12), rgba(13, 148, 136, 0.18));
+    border-color: rgba(5, 150, 105, 0.3);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    color: #34d399;
+  }
+
+  /* ===== NEW: Success Checkmark Animation ===== */
+
+  .success-check {
+    position: relative;
+  }
+  .success-check::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: rgba(5, 150, 105, 0.06);
+    animation: success-flash 0.6s ease-out;
+    pointer-events: none;
+  }
+  .dark .success-check::after {
+    background: rgba(5, 150, 105, 0.1);
+  }
+  .success-check svg {
+    animation: check-draw 0.4s ease-out;
+  }
+
+  /* ===== NEW: Recording Indicator ===== */
+
+  .rec-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #dc2626;
+  }
+  .rec-indicator .rec-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #dc2626;
+    animation: rec-blink 1.2s ease-in-out infinite;
+    box-shadow: 0 0 6px rgba(220, 38, 38, 0.5);
+  }
+  .dark .rec-indicator .rec-dot {
+    box-shadow: 0 0 8px rgba(220, 38, 38, 0.6);
+  }
+
+  /* ===== NEW: Subtle Animated Gradient Border ===== */
+
+  .gradient-border-subtle {
+    position: relative;
+  }
+  .gradient-border-subtle::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1.5px;
+    background: linear-gradient(135deg,
+      rgba(5, 150, 105, 0.3),
+      rgba(13, 148, 136, 0.1),
+      rgba(5, 150, 105, 0.3),
+      rgba(13, 148, 136, 0.1)
+    );
+    background-size: 300% 300%;
+    animation: gradient-border-subtle-shift 8s ease infinite;
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    -webkit-mask-composite: xor;
+    pointer-events: none;
+  }
+  .dark .gradient-border-subtle::before {
+    background: linear-gradient(135deg,
+      rgba(5, 150, 105, 0.4),
+      rgba(13, 148, 136, 0.15),
+      rgba(5, 150, 105, 0.4),
+      rgba(13, 148, 136, 0.15)
+    );
+    background-size: 300% 300%;
+  }
+
+  /* ===== NEW: Header Animated Bottom Border ===== */
+
+  .header-border-glow::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 10%;
+    right: 10%;
+    height: 1px;
+    background: linear-gradient(90deg,
+      transparent,
+      rgba(5, 150, 105, 0.4),
+      rgba(13, 148, 136, 0.6),
+      rgba(5, 150, 105, 0.4),
+      transparent
+    );
+    animation: header-border-shimmer 4s ease-in-out infinite;
+  }
+  .dark .header-border-glow::after {
+    background: linear-gradient(90deg,
+      transparent,
+      rgba(5, 150, 105, 0.3),
+      rgba(13, 148, 136, 0.5),
+      rgba(5, 150, 105, 0.3),
+      transparent
+    );
+  }
+
+  /* ===== NEW: Subtle Page Dot Grid Background ===== */
+
+  .page-dot-grid {
+    background-image: radial-gradient(circle, rgba(5, 150, 105, 0.04) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+  .dark .page-dot-grid {
+    background-image: radial-gradient(circle, rgba(5, 150, 105, 0.06) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  /* ===== NEW: Status Dot Pulse Ring ===== */
+
+  .status-dot-pulse {
+    position: relative;
+  }
+  .status-dot-pulse::before {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(5, 150, 105, 0.4);
+    animation: status-ring 2s ease-out infinite;
+    pointer-events: none;
+  }
+  .dark .status-dot-pulse::before {
+    border-color: rgba(5, 150, 105, 0.5);
+  }
+
+  /* ===== NEW: Approval Toggle Glow ===== */
+
+  .approval-glow {
+    box-shadow: 0 0 0 0 rgba(5, 150, 105, 0);
+    transition: box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s ease, background-color 0.3s ease;
+  }
+  .approval-glow.active {
+    border-color: rgba(5, 150, 105, 0.3);
+    background-color: rgba(5, 150, 105, 0.03);
+    box-shadow: 0 0 20px rgba(5, 150, 105, 0.08), 0 0 40px rgba(5, 150, 105, 0.04);
+  }
+  .dark .approval-glow.active {
+    border-color: rgba(5, 150, 105, 0.4);
+    background-color: rgba(5, 150, 105, 0.06);
+    box-shadow: 0 0 24px rgba(5, 150, 105, 0.1), 0 0 48px rgba(5, 150, 105, 0.05);
+  }
+
+  /* ===== NEW: Connection Quality Gradient Badges ===== */
+
+  .quality-badge-good {
+    background: linear-gradient(135deg, rgba(5, 150, 105, 0.12), rgba(13, 148, 136, 0.08));
+    border-color: rgba(5, 150, 105, 0.3);
+    color: #059669;
+  }
+  .dark .quality-badge-good {
+    background: linear-gradient(135deg, rgba(5, 150, 105, 0.15), rgba(13, 148, 136, 0.1));
+    border-color: rgba(5, 150, 105, 0.4);
+    color: #34d399;
+  }
+  .quality-badge-fair {
+    background: linear-gradient(135deg, rgba(217, 119, 6, 0.1), rgba(245, 158, 11, 0.06));
+    border-color: rgba(217, 119, 6, 0.25);
+    color: #d97706;
+  }
+  .dark .quality-badge-fair {
+    background: linear-gradient(135deg, rgba(217, 119, 6, 0.12), rgba(245, 158, 11, 0.08));
+    border-color: rgba(217, 119, 6, 0.35);
+    color: #fbbf24;
+  }
+  .quality-badge-poor {
+    background: linear-gradient(135deg, rgba(220, 38, 38, 0.08), rgba(239, 68, 68, 0.05));
+    border-color: rgba(220, 38, 38, 0.2);
+    color: #dc2626;
+  }
+  .dark .quality-badge-poor {
+    background: linear-gradient(135deg, rgba(220, 38, 38, 0.12), rgba(239, 68, 68, 0.08));
+    border-color: rgba(220, 38, 38, 0.3);
+    color: #f87171;
+  }
+
+  /* ===== NEW: Chat Header Gradient ===== */
+
+  .chat-header-gradient {
+    background: linear-gradient(135deg, rgba(5, 150, 105, 0.04), rgba(13, 148, 136, 0.06));
+    border-bottom: 1px solid rgba(5, 150, 105, 0.12);
+  }
+  .dark .chat-header-gradient {
+    background: linear-gradient(135deg, rgba(5, 150, 105, 0.08), rgba(13, 148, 136, 0.1));
+    border-bottom: 1px solid rgba(5, 150, 105, 0.15);
+  }
+
+  /* ===== NEW: Online Status Dot ===== */
+
+  .online-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #059669;
+    box-shadow: 0 0 4px rgba(5, 150, 105, 0.4);
+    flex-shrink: 0;
+  }
+  .dark .online-dot {
+    box-shadow: 0 0 6px rgba(5, 150, 105, 0.5);
+  }
+
+  /* ===== NEW: Button Disabled Enhanced ===== */
+
+  .btn-disabled-enhanced {
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-disabled-enhanced:disabled::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 4px,
+      rgba(128, 128, 128, 0.06) 4px,
+      rgba(128, 128, 128, 0.06) 8px
+    );
+    pointer-events: none;
+  }
+  .dark .btn-disabled-enhanced:disabled::before {
+    background: repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 4px,
+      rgba(255, 255, 255, 0.03) 4px,
+      rgba(255, 255, 255, 0.03) 8px
+    );
+  }
+
+  /* ===== NEW: Shortcuts Row ===== */
+
+  .shortcut-row {
+    transition: all 0.2s ease;
+    border-radius: 0.5rem;
+  }
+  .shortcut-row:hover {
+    background: rgba(5, 150, 105, 0.04);
+    border-color: rgba(5, 150, 105, 0.15);
+  }
+  .dark .shortcut-row:hover {
+    background: rgba(5, 150, 105, 0.06);
+    border-color: rgba(5, 150, 105, 0.2);
+  }
 }
 
 /* ===== Keyframes ===== */
@@ -1121,4 +1406,53 @@
 @keyframes empty-pulse {
   0%, 100% { opacity: 0.3; transform: scale(1); }
   50% { opacity: 0.6; transform: scale(1.05); }
+}
+
+/* ===== NEW Phase 6a Keyframes ===== */
+
+@keyframes border-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(5, 150, 105, 0.1), 0 0 20px rgba(5, 150, 105, 0.05); }
+  50% { box-shadow: 0 0 16px rgba(5, 150, 105, 0.2), 0 0 40px rgba(5, 150, 105, 0.1); }
+}
+
+@keyframes border-glow-dark {
+  0%, 100% { box-shadow: 0 0 12px rgba(5, 150, 105, 0.15), 0 0 28px rgba(5, 150, 105, 0.06); }
+  50% { box-shadow: 0 0 20px rgba(5, 150, 105, 0.3), 0 0 48px rgba(5, 150, 105, 0.12); }
+}
+
+@keyframes success-flash {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes check-draw {
+  0% { stroke-dashoffset: 24; opacity: 0; }
+  50% { opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 1; }
+}
+
+@keyframes rec-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+@keyframes gradient-border-subtle-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes header-border-shimmer {
+  0%, 100% { opacity: 0.5; left: 15%; right: 15%; }
+  50% { opacity: 1; left: 8%; right: 8%; }
+}
+
+@keyframes status-ring {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+
+@keyframes reaction-trail {
+  0% { opacity: 0.6; transform: scale(0.8) translateY(4px); }
+  100% { opacity: 0; transform: scale(0.4) translateY(20px); }
 }

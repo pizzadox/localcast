@@ -23,6 +23,7 @@ import {
   RefreshCw,
   Radio,
   Loader2,
+  Pause,
 } from "lucide-react";
 
 import { pageVariants, REACTION_EMOJIS } from "./types";
@@ -37,6 +38,7 @@ interface WatchViewProps {
   isFullscreen: boolean;
   pipSupported: boolean;
   waitingApproval: boolean;
+  isPaused: boolean;
   error: string | null;
   latency: number;
   onToggleMute: () => void;
@@ -56,6 +58,7 @@ export function WatchView({
   isFullscreen,
   pipSupported,
   waitingApproval,
+  isPaused,
   error,
   latency,
   onToggleMute,
@@ -136,14 +139,14 @@ export function WatchView({
         <div className="flex items-center gap-1.5">
           {/* Connection quality */}
           <Badge
-            variant={
+            variant="outline"
+            className={`gap-1 ${
               connectionQuality === "good"
-                ? "secondary"
+                ? "quality-badge-good"
                 : connectionQuality === "fair"
-                  ? "outline"
-                  : "destructive"
-            }
-            className="gap-1"
+                  ? "quality-badge-fair"
+                  : "quality-badge-poor"
+            }`}
           >
             {connectionQuality === "poor" ? (
               <WifiOff className="size-3" />
@@ -208,8 +211,8 @@ export function WatchView({
         </div>
       </div>
 
-      {/* Video Container with Vignette */}
-      <div className="vignette video-bottom-gradient video-container flex flex-1 items-center justify-center overflow-hidden rounded-xl border shadow-xl shadow-black/20"
+      {/* Video Container with Vignette + Gradient Border */}
+      <div className={`vignette video-bottom-gradient video-container flex flex-1 items-center justify-center overflow-hidden rounded-xl border shadow-xl shadow-black/20 transition-all duration-500 ${connectionStatus === "connected" ? "gradient-border-subtle" : ""}`}
         ref={(el) => {
           // Attach mousemove listener to video container for controls auto-hide
           if (el && !containerRef.current) {
@@ -262,13 +265,33 @@ export function WatchView({
             </Button>
           </div>
         ) : (
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted={false}
-            className="max-h-full w-full object-contain"
-          />
+          <>
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted={false}
+              className="max-h-full w-full object-contain"
+            />
+            <AnimatePresence>
+              {isPaused && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="connection-lost-overlay absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 rounded-xl"
+                >
+                  <div className="flex size-16 items-center justify-center rounded-full bg-amber-500/20">
+                    <Pause className="size-8 text-amber-300" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-lg font-semibold text-amber-200">Stream Paused</p>
+                    <p className="mt-1 text-sm text-amber-300/60">The host will resume shortly</p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </>
         )}
 
         {/* Connection Lost Overlay */}
@@ -332,7 +355,7 @@ export function WatchView({
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.8, y: 8 }}
                   transition={{ duration: 0.2 }}
-                  className="absolute bottom-full right-0 mb-2 flex gap-1 rounded-xl border bg-background/95 p-2 shadow-lg backdrop-blur-sm"
+                  className="absolute bottom-full right-0 mb-2 flex gap-1 rounded-2xl border border-emerald-200/40 bg-background/95 p-2 shadow-xl backdrop-blur-md dark:border-emerald-800/30"
                 >
                   {REACTION_EMOJIS.map((emoji, i) => (
                     <motion.button
@@ -356,7 +379,7 @@ export function WatchView({
               variant="ghost"
               size="icon"
               onClick={() => setShowReactions(!showReactions)}
-              className={`size-9 transition-colors ${showReactions ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : ""}`}
+              className={`size-9 rounded-xl transition-all duration-200 ${showReactions ? "bg-emerald-100 text-emerald-700 shadow-sm shadow-emerald-500/20 dark:bg-emerald-950 dark:text-emerald-300" : "hover:bg-muted"}`}
               title="Send reaction"
             >
               <SmilePlus className="size-4" />

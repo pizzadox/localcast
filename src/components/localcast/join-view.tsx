@@ -18,13 +18,18 @@ import {
   AlertCircle,
   ArrowLeft,
   Eye,
+  EyeOff,
   Wifi,
   WifiOff,
   Loader2,
   ShieldAlert,
+  Lock,
+  Clipboard,
+  CircleCheck,
 } from "lucide-react";
 
 import { pageVariants } from "./types";
+import { useState } from "react";
 
 interface JoinViewProps {
   viewerInput: string;
@@ -33,6 +38,9 @@ interface JoinViewProps {
   onClearError: () => void;
   error: string | null;
   waitingApproval: boolean;
+  roomRequiresPassword: boolean;
+  joinPassword: string;
+  onJoinPasswordChange: (v: string) => void;
   onBack: () => void;
 }
 
@@ -43,9 +51,13 @@ export function JoinView({
   onClearError,
   error,
   waitingApproval,
+  roomRequiresPassword,
+  joinPassword,
+  onJoinPasswordChange,
   onBack,
 }: JoinViewProps) {
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Focus the correct input box
   useEffect(() => {
@@ -119,9 +131,30 @@ export function JoinView({
       transition={{ duration: 0.3 }}
       className="w-full max-w-md px-4"
     >
-      <Card className="glass-card overflow-hidden border-2 shadow-lg">
+      <Card className="glass-card relative overflow-hidden border-2 shadow-lg">
         {/* Top accent bar */}
         <div className="h-1 bg-gradient-to-r from-teal-500 via-cyan-400 to-teal-500" />
+
+        {/* Connection status indicator (top-right corner) */}
+        <div className="absolute top-4 right-4 z-10">
+          <div className={`flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-all duration-300 ${
+            viewerInput.length === 6
+              ? "border-emerald-300 bg-emerald-50 text-emerald-600 dark:border-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400"
+              : "border-border/60 bg-muted/40 text-muted-foreground"
+          }`}>
+            {viewerInput.length === 6 ? (
+              <>
+                <CircleCheck className="size-3" />
+                <span>Ready</span>
+              </>
+            ) : (
+              <>
+                <span className={`size-1.5 rounded-full ${viewerInput.length > 0 ? "bg-amber-400" : "bg-muted-foreground/40"}`} />
+                <span>{viewerInput.length}/6</span>
+              </>
+            )}
+          </div>
+        </div>
 
         <CardHeader className="text-center">
           <motion.div
@@ -209,9 +242,73 @@ export function JoinView({
                   ))}
                 </div>
 
-                <p className="text-center text-xs text-muted-foreground/50">
-                  Paste or type 6 characters · Alphanumeric only
-                </p>
+                <div className="flex items-center justify-center gap-2">
+                  <p className="text-center text-xs text-muted-foreground/50">
+                    Paste or type 6 characters
+                  </p>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.readText().then((text) => {
+                        const pasted = text.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
+                        if (pasted.length > 0) {
+                          onViewerInputChange(pasted);
+                          onClearError();
+                          const nextIdx = Math.min(pasted.length, 5);
+                          inputRefs.current[nextIdx]?.focus();
+                        }
+                      });
+                    }}
+                    className="flex items-center gap-1 rounded-md border border-border/60 bg-muted/30 px-2 py-0.5 text-[10px] text-muted-foreground transition-all duration-200 hover:bg-muted/50 hover:border-border hover:text-foreground"
+                    title="Paste from clipboard"
+                  >
+                    <Clipboard className="size-3" />
+                    Paste
+                  </button>
+                </div>
+
+                {/* Password input (shown when room requires password) */}
+                <AnimatePresence>
+                  {roomRequiresPassword && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="space-y-2"
+                    >
+                      <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                        <Lock className="size-4" />
+                        <label className="text-sm font-medium">Room Password</label>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          value={joinPassword}
+                          onChange={(e) => {
+                            onJoinPasswordChange(e.target.value);
+                            onClearError();
+                          }}
+                          placeholder="Enter room password"
+                          className="glass-input w-full rounded-lg border border-amber-300/60 bg-amber-50/30 px-3 py-2.5 pr-10 text-sm outline-none transition-all focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 dark:border-amber-800/60 dark:bg-amber-950/30"
+                          maxLength={32}
+                          aria-label="Room password"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && joinPassword.length > 0) {
+                              onJoinRoom();
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                          aria-label={showPassword ? "Hide password" : "Show password"}
+                        >
+                          {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </motion.div>
             )}
           </AnimatePresence>
@@ -224,7 +321,7 @@ export function JoinView({
             <Button
               onClick={onJoinRoom}
               disabled={viewerInput.length !== 6 || waitingApproval}
-              className="relative w-full overflow-hidden bg-teal-600 text-white shadow-lg shadow-teal-500/25 hover:bg-teal-700 hover:shadow-xl hover:shadow-teal-500/30 transition-all dark:bg-teal-600 dark:hover:bg-teal-700 h-12 text-base font-semibold disabled:opacity-50 disabled:shadow-none"
+              className={`btn-disabled-enhanced relative w-full overflow-hidden bg-teal-600 text-white shadow-lg shadow-teal-500/25 hover:bg-teal-700 hover:shadow-xl hover:shadow-teal-500/30 transition-all dark:bg-teal-600 dark:hover:bg-teal-700 h-12 text-base font-semibold disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed ${viewerInput.length === 6 && !waitingApproval ? "animate-border-glow" : ""}`}
               size="lg"
             >
               <span className="absolute inset-0 overflow-hidden rounded-md">
